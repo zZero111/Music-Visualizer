@@ -8,18 +8,22 @@
 
 // Parameter model. Must match VIS / SHAPES / NMOD in web/index.html.
 struct SphereVisParam { const char* id; const char* name; float min, max, def; };
-inline constexpr std::array<SphereVisParam, 11> kVisParams {{
-    { "zoom",      "Zoom",         0.4f,  2.0f, 1.0f  },
-    { "disp",      "Displacement", 0.0f,  1.0f, 0.2f  },
-    { "detail",    "Detail",       0.3f,  6.0f, 1.5f  },
-    { "flow",      "Flow Speed",   0.0f,  3.0f, 0.4f  },
-    { "spin",      "Spin",        -2.0f,  2.0f, 0.15f },
-    { "tilt",      "Tilt",        -1.5f,  1.5f, 0.2f  },
-    { "twist",     "Twist",       -3.0f,  3.0f, 0.0f  },
-    { "hue",       "Hue Shift",    0.0f,  1.0f, 0.0f  },
-    { "glow",      "Glow",         0.0f,  2.0f, 0.5f  },
-    { "wire",      "Wireframe",    0.0f,  1.0f, 0.3f  },
-    { "particles", "Particles",    0.0f,  1.0f, 0.5f  },
+inline constexpr std::array<SphereVisParam, 15> kVisParams {{
+    { "zoom",      "Zoom",        0.4f,  2.0f, 1.0f  },
+    { "disp",      "Displace",    0.0f,  1.0f, 0.3f  },
+    { "spikes",    "Spikes",      0.0f,  1.0f, 0.35f },
+    { "detail",    "Detail",      0.3f,  6.0f, 1.6f  },
+    { "twist",     "Twist",      -3.0f,  3.0f, 0.0f  },
+    { "flow",      "Flow",        0.0f,  3.0f, 0.5f  },
+    { "spin",      "Spin",       -2.0f,  2.0f, 0.12f },
+    { "tilt",      "Tilt",       -1.5f,  1.5f, 0.2f  },
+    { "fluff",     "Fluff",       0.0f,  1.0f, 0.6f  },
+    { "shards",    "Shards",      0.0f,  1.0f, 0.3f  },
+    { "particles", "Particles",   0.0f,  1.0f, 0.4f  },
+    { "glow",      "Glow",        0.0f,  2.0f, 0.9f  },
+    { "bright",    "Brightness",  0.2f,  3.0f, 1.0f  },
+    { "hue",       "Hue",         0.0f,  1.0f, 0.0f  },
+    { "sat",       "Saturation",  0.0f,  2.0f, 1.0f  },
 }};
 
 class SphereAudioProcessor : public juce::AudioProcessor

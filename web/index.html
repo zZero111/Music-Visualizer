@@ -3,204 +3,231 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-/* Layout: full-bleed WebGL stage + a tabbed plugin-style rack (right on desktop, below on phones). Single dark look by choice. */
+/* Layout: full-bleed WebGL stage; a slim control rack with knobs (right on desktop, below on phones) and a modifier dock pinned to its foot. Single dark look by choice. */
 :root {
-  --bg: #06070b;
-  --panel: #0d0f16;
-  --raise: #161927;
-  --line: #252a3b;
-  --fg: #e6e8f2;
-  --dim: #868ca3;
-  --accent: #7cf3ff;
-  --accent2: #7a5cff;
+  --bg: #05050a;
+  --panel: #0c0d14;
+  --raise: #151723;
+  --line: #232637;
+  --fg: #e8e9f3;
+  --dim: #80869c;
+  --accent: #ff4fd8;
+  --mod: #ffad5c;
   --rec: #ff3b5c;
   --display: 'Space Grotesk', system-ui, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
   color-scheme: dark;
 }
+*, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; }
 [hidden] { display: none !important; }
 body { background: var(--bg); color: var(--fg); font-family: var(--display); overflow: hidden; }
 button, select, input { font-family: inherit; }
-.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 360px; }
-body.panel-hidden .app { grid-template-columns: minmax(0, 1fr) 0; }
+.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 372px; }
+body.panel-hidden .app { grid-template-columns: minmax(0, 1fr); }
 body.panel-hidden .rack { display: none; }
 .stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #000; }
 #gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; }
-#logo { position: absolute; pointer-events: none; display: none; }
-.topbar { position: absolute; top: 0; left: 0; right: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-  padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; pointer-events: none; z-index: 2; }
+#logo { position: absolute; pointer-events: none; }
+.topbar { position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; pointer-events: none; }
 .topbar > * { pointer-events: auto; }
-.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
-.brand b { font-weight: 700; letter-spacing: 0.28em; font-size: 15px; }
-.brand span { font-family: var(--mono); font-size: 11px; color: var(--dim); }
-.btn { font: 500 13px var(--display); color: var(--fg); background: rgba(22, 25, 39, 0.85); border: 1px solid var(--line); border-radius: 8px;
-  padding: 7px 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.brand { margin-right: auto; font-weight: 700; letter-spacing: 0.3em; font-size: 14px; }
+.btn { font: 500 13px var(--display); color: var(--fg); background: rgba(21, 23, 35, 0.8); border: 1px solid var(--line); border-radius: 8px;
+  padding: 7px 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; backdrop-filter: blur(6px); }
 .btn:hover { border-color: var(--accent); }
-.btn:focus-visible, select:focus-visible, input:focus-visible, .chip:focus-visible, .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.btn.primary { background: var(--accent); color: #041014; border-color: var(--accent); font-weight: 700; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #12030f; font-weight: 700; }
+.btn.small { padding: 5px 9px; font-size: 12px; }
 .btn.rec .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--rec); }
-.btn.rec.on { border-color: var(--rec); color: #fff; background: rgba(255, 59, 92, 0.25); }
+.btn.rec.on { border-color: var(--rec); background: rgba(255, 59, 92, 0.22); }
 .btn.rec.on .dot { animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0.2; } }
-.presetnav { display: inline-flex; align-items: center; gap: 2px; background: rgba(22, 25, 39, 0.85); border: 1px solid var(--line); border-radius: 8px; }
-.presetnav .btn { border: 0; background: transparent; padding: 7px 9px; }
-.presetnav span { font-size: 13px; min-width: 92px; text-align: center; }
-.status { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); right: 16px; bottom: 12px; font-family: var(--mono); font-size: 11px; color: var(--dim); z-index: 2; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pnav { display: inline-flex; align-items: center; background: rgba(21, 23, 35, 0.8); border: 1px solid var(--line); border-radius: 8px; backdrop-filter: blur(6px); }
+.pnav button { border: 0; background: none; color: var(--fg); padding: 7px 10px; cursor: pointer; font-size: 14px; }
+.pnav span { font-size: 13px; min-width: 96px; text-align: center; }
+.status { position: absolute; z-index: 2; left: max(16px, env(safe-area-inset-left, 0px)); right: 16px; bottom: 12px; font: 11px var(--mono); color: var(--dim); }
 
-.rack { background: var(--panel); border-left: 1px solid var(--line); min-height: 0; display: flex; flex-direction: column; }
-.chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 12px 16px 10px; padding-right: max(16px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line); }
-.chip { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--raise); color: var(--fg);
-  padding: 5px 7px; text-align: left; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
-.chip b { font: 600 11px var(--mono); display: block; }
-.chip small { font-size: 10px; color: var(--dim); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chip .lv { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--accent); }
-.chip.off { opacity: 0.45; }
-.chiphint { grid-column: 1 / -1; font-size: 11px; color: var(--dim); margin: 2px 0 0; }
-.ghost { position: fixed; z-index: 50; pointer-events: none; padding: 5px 9px; border-radius: 7px; background: var(--accent); color: #041014; font: 600 12px var(--mono); transform: translate(-50%, -120%); }
-.tabs { display: flex; gap: 2px; padding: 8px 12px 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
-.tab { border: 0; background: none; color: var(--dim); font-size: 13px; font-weight: 500; padding: 8px 10px; cursor: pointer; border-bottom: 2px solid transparent; }
+.rack { background: var(--panel); border-left: 1px solid var(--line); min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.tabs { display: flex; padding: 6px 10px 0; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.tab { border: 0; background: none; color: var(--dim); font-size: 13px; font-weight: 500; padding: 9px 9px; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
 .tab[aria-selected=true] { color: var(--fg); border-bottom-color: var(--accent); }
-.panes { overflow-y: auto; min-height: 0; flex: 1; }
-.pane { padding-block: 14px 28px; padding-left: 16px; padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 18px; }
-.sec { display: flex; flex-direction: column; gap: 9px; }
-.sec h3 { font-size: 11px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); margin: 0; }
-.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.seg.four { grid-template-columns: repeat(4, 1fr); }
-.seg button { border: 1px solid var(--line); background: var(--raise); color: var(--fg); border-radius: 7px; padding: 7px 4px; font-size: 12px; cursor: pointer; }
-.seg button[aria-pressed=true] { border-color: var(--accent); color: var(--accent); }
-.prow { display: grid; grid-template-columns: 98px minmax(0, 1fr) 44px; gap: 8px; align-items: center; font-size: 13px; border-radius: 6px; padding: 2px 4px; margin: 0 -4px; }
-.prow.drop { background: rgba(124, 243, 255, 0.12); outline: 1px dashed var(--accent); }
-.prow .badges { grid-column: 2 / 4; display: flex; gap: 4px; flex-wrap: wrap; margin-top: -4px; }
-.prow .badges:empty { display: none; }
-.badge { font: 600 10px var(--mono); padding: 1px 5px; border-radius: 4px; background: var(--raise); border: 1px solid var(--line); color: var(--accent); cursor: pointer; }
-output { font-family: var(--mono); font-size: 11px; color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
+.panes { overflow-y: auto; min-height: 0; }
+.pane { padding-block: 14px 22px; padding-left: 16px; padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 18px; }
+.sec { display: flex; flex-direction: column; gap: 10px; }
+.sec > h3 { font-size: 10.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); margin: 0; display: flex; justify-content: space-between; align-items: center; }
+.seg { display: grid; grid-template-columns: repeat(var(--n, 3), 1fr); gap: 4px; background: var(--raise); border: 1px solid var(--line); border-radius: 8px; padding: 3px; }
+.seg button { border: 0; background: none; color: var(--dim); border-radius: 6px; padding: 6px 2px; font-size: 12px; cursor: pointer; }
+.seg button[aria-pressed=true] { background: var(--line); color: var(--fg); }
+.knobs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px 4px; }
+.knob { display: flex; flex-direction: column; align-items: center; gap: 1px; cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none; border-radius: 8px; padding: 2px 0 4px; }
+.knob svg { width: 52px; height: 52px; overflow: visible; }
+.knob .trk { stroke: var(--line); }
+.knob .val { stroke: var(--accent); }
+.knob .mod { stroke: var(--mod); }
+.knob path, .knob line { fill: none; stroke-linecap: round; }
+.knob .ptr { stroke: var(--fg); }
+.knob .kl { font-size: 11px; color: var(--fg); }
+.knob .kv { font: 10px var(--mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+.knob .kb { display: flex; gap: 2px; min-height: 12px; }
+.knob .kb span { font: 600 9px var(--mono); color: var(--mod); cursor: pointer; }
+.knob.drop { background: rgba(255, 173, 92, 0.14); outline: 1px dashed var(--mod); }
+.row { display: grid; grid-template-columns: 84px minmax(0, 1fr) 52px; gap: 8px; align-items: center; font-size: 12.5px; }
+.row output { font: 11px var(--mono); color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
 input[type=range] { width: 100%; accent-color: var(--accent); min-width: 0; }
-select, input[type=number], input[type=text] { font: 12px var(--mono); color: var(--fg); background: var(--raise); border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; width: 100%; min-width: 0; }
-.mod { border: 1px solid var(--line); border-radius: 9px; padding: 10px; display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 7px 10px; align-items: center; font-size: 12px; }
-.mod.sel { border-color: var(--accent); }
-.mod .hd { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
-.mod .hd b { font: 600 12px var(--mono); }
-.mod .hd .mlv { flex: 1; height: 5px; background: var(--raise); border-radius: 3px; overflow: hidden; }
-.mod .hd .mlv i { display: block; height: 100%; width: 0; background: var(--accent); }
-.mod .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.mod[data-off] > :not(.hd) { opacity: 0.4; }
-.grid5 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.pbtn { border: 1px solid var(--line); background: var(--raise); color: var(--fg); border-radius: 8px; padding: 8px 6px 7px; cursor: pointer; text-align: left; font-size: 12px; display: flex; flex-direction: column; gap: 6px; }
-.pbtn i { display: block; height: 18px; border-radius: 4px; }
-.pbtn[aria-pressed=true] { border-color: var(--accent); }
-.urow { display: flex; gap: 6px; }
+select, input[type=number], input[type=text] { font: 12px var(--mono); color: var(--fg); background: var(--raise); border: 1px solid var(--line); border-radius: 6px; padding: 6px; width: 100%; min-width: 0; }
+details > summary { cursor: pointer; font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); list-style: none; }
+details > summary::before { content: '+ '; }
+details[open] > summary::before { content: '\2013  '; }
+details > div { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+
+/* modulation list */
+.mi { border: 1px solid var(--line); border-radius: 10px; background: var(--raise); }
+.mi.open { border-color: #3a3f58; }
+.mh { display: grid; grid-template-columns: auto 30px minmax(0, 1fr) 54px 16px; gap: 8px; align-items: center; padding: 8px 10px; cursor: pointer; font-size: 12px; }
+.mh b { font: 600 12px var(--mono); }
+.mh .msum { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mh .mm { height: 5px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+.mh .mm i { display: block; height: 100%; width: 0; background: var(--mod); }
+.mh .chev { color: var(--dim); font-size: 12px; text-align: center; }
+.mi.off .mh b, .mi.off .msum { opacity: 0.45; }
+.sw2 { appearance: none; -webkit-appearance: none; width: 28px; height: 16px; border-radius: 8px; background: var(--line); position: relative; cursor: pointer; margin: 0; }
+.sw2::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--dim); transition: left 0.15s; }
+.sw2:checked { background: var(--mod); }
+.sw2:checked::after { left: 14px; background: #1a0f02; }
+.mb { padding: 2px 10px 12px; display: flex; flex-direction: column; gap: 9px; border-top: 1px solid var(--line); padding-top: 10px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.curve { position: relative; }
+.curve canvas { width: 100%; height: 96px; display: block; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; cursor: crosshair; touch-action: none; }
+.curve .cread { position: absolute; right: 8px; top: 6px; font: 10px var(--mono); color: var(--dim); pointer-events: none; }
+.qc { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.qc button { border: 1px solid var(--line); background: none; color: var(--dim); border-radius: 6px; padding: 4px 0; font-size: 11px; cursor: pointer; }
+.qc button:hover { color: var(--fg); }
+
+/* modifier dock */
+.dock { border-top: 1px solid var(--line); padding: 9px 16px 11px; padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 5px; align-items: center; }
+.chip { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--raise); color: var(--fg); font: 600 11px var(--mono);
+  padding: 6px 0 7px; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.chip .lv { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--mod); }
+.chip.off { color: var(--dim); }
+.dock p { grid-column: 1 / -1; margin: 0; font-size: 10.5px; color: var(--dim); }
+.ghost { position: fixed; z-index: 50; pointer-events: none; padding: 5px 9px; border-radius: 7px; background: var(--mod); color: #1a0f02; font: 600 12px var(--mono); transform: translate(-50%, -130%); }
+
+/* colour */
+.stops { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.stops label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--dim); }
+input[type=color] { width: 100%; height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--raise); padding: 2px; cursor: pointer; }
+.gbar { height: 10px; border-radius: 5px; }
+.pals { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.pal { aspect-ratio: 1; border-radius: 8px; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.pal[aria-pressed=true] { border-color: var(--fg); }
+.presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.pb { border: 1px solid var(--line); background: var(--raise); color: var(--fg); border-radius: 8px; padding: 6px; cursor: pointer; text-align: left; font-size: 12px; display: flex; flex-direction: column; gap: 6px; }
+.pb i { display: block; height: 22px; border-radius: 5px; }
+.pb[aria-pressed=true] { border-color: var(--accent); }
 .ulist { display: flex; flex-direction: column; gap: 4px; }
-.ulist div { display: flex; gap: 6px; align-items: center; }
-.ulist div button:first-child { flex: 1; text-align: left; }
-.colors { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.colors label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dim); }
-input[type=color] { width: 100%; height: 34px; border: 1px solid var(--line); border-radius: 7px; background: var(--raise); padding: 2px; }
-.themes { display: flex; flex-wrap: wrap; gap: 8px; }
-.sw { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
-.check { display: inline-flex; gap: 7px; align-items: center; font-size: 13px; cursor: pointer; }
+.ulist div { display: flex; gap: 6px; }
+.ulist div button:first-child { flex: 1; }
+.check { display: inline-flex; gap: 8px; align-items: center; font-size: 12.5px; cursor: pointer; }
 .note { font-size: 12px; line-height: 1.55; color: var(--dim); margin: 0; }
-.row2 { display: grid; grid-template-columns: 98px minmax(0, 1fr); gap: 8px; align-items: center; font-size: 13px; }
+.recbig { justify-content: center; padding: 11px; font-size: 14px; }
 .plugin-only { display: none !important; }
 body.in-plugin .web-only { display: none !important; }
 body.in-plugin .plugin-only { display: revert !important; }
 @media (max-width: 760px) {
-  .app, body.panel-hidden .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 50%); }
-  body.panel-hidden .app { grid-template-rows: minmax(0, 1fr) 0; }
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 52%); }
+  body.panel-hidden .app { grid-template-rows: minmax(0, 1fr); }
   .rack { border-left: 0; border-top: 1px solid var(--line); }
-  .chips { padding-left: max(16px, env(safe-area-inset-left, 0px)); }
-  .pane { padding-left: max(16px, env(safe-area-inset-left, 0px)); }
-  .brand span { display: none; }
+  .pane, .dock { padding-left: max(16px, env(safe-area-inset-left, 0px)); }
 }
 @media (prefers-reduced-motion: reduce) { .btn.rec.on .dot { animation: none; } }
 </style>
 
 <div class="app">
-  <div class="stage" id="stage">
+  <div class="stage">
     <canvas id="gl" aria-label="Audio reactive visual"></canvas>
-    <img id="logo" alt="">
+    <img id="logo" alt="" hidden>
     <div class="topbar">
-      <div class="brand"><b>SPHERE</b><span id="sub">audio visualizer &middot; preview</span></div>
-      <div class="presetnav" aria-label="Preset">
-        <button class="btn" id="prev" type="button" aria-label="Previous preset">&lsaquo;</button>
-        <span id="pname">Nebula</span>
-        <button class="btn" id="next" type="button" aria-label="Next preset">&rsaquo;</button>
-      </div>
-      <button class="btn primary web-only" id="play" type="button">&#9654; Play demo beat</button>
+      <div class="brand">SPHERE</div>
+      <div class="pnav"><button id="prev" type="button" aria-label="Previous preset">&lsaquo;</button><span id="pname">Supernova</span><button id="next" type="button" aria-label="Next preset">&rsaquo;</button></div>
+      <button class="btn primary web-only" id="play" type="button">&#9654; Play demo</button>
       <label class="btn web-only" for="file">Load audio</label>
       <input id="file" type="file" accept="audio/*" hidden>
-      <button class="btn rec" id="rec" type="button"><span class="dot"></span><span id="rect">Record</span></button>
-      <button class="btn" id="hide" type="button" aria-pressed="false">Hide panel</button>
+      <button class="btn rec" id="rec" type="button"><span class="dot"></span><span id="rect">Rec</span></button>
+      <button class="btn" id="hide" type="button" aria-pressed="false" aria-label="Hide controls">&#9707;</button>
     </div>
     <div class="status" id="status">Preview motion. Press Play to hear the demo beat.</div>
   </div>
 
   <aside class="rack" aria-label="Controls">
-    <div class="chips" id="chips"></div>
     <div class="tabs" role="tablist">
-      <button class="tab" role="tab" data-tab="visual" aria-selected="true">Visual</button>
-      <button class="tab" role="tab" data-tab="mods" aria-selected="false">Modifiers</button>
+      <button class="tab" role="tab" data-tab="shape" aria-selected="true">Shape</button>
+      <button class="tab" role="tab" data-tab="mod" aria-selected="false">Modulation</button>
       <button class="tab" role="tab" data-tab="color" aria-selected="false">Colour</button>
       <button class="tab" role="tab" data-tab="presets" aria-selected="false">Presets</button>
-      <button class="tab" role="tab" data-tab="record" aria-selected="false">Record</button>
+      <button class="tab" role="tab" data-tab="export" aria-selected="false">Export</button>
     </div>
     <div class="panes">
-      <div class="pane" data-pane="visual">
-        <section class="sec"><h3>Shape</h3><div class="seg" id="shapes"></div></section>
-        <section class="sec"><h3>Parameters</h3><div id="vis" style="display:flex;flex-direction:column;gap:6px"></div></section>
-        <section class="sec"><h3>Response</h3>
-          <div class="prow"><label for="sens">Sensitivity</label><input id="sens" type="range" min="0.2" max="3" step="0.01"><output id="sensv"></output></div>
-          <div class="prow"><label for="smooth">Smoothing</label><input id="smooth" type="range" min="0" max="1" step="0.01"><output id="smoothv"></output></div>
-        </section>
-        <section class="sec"><h3>Performance</h3>
-          <div class="row2"><span>Mesh density</span><div class="seg four" id="density"></div></div>
-          <div class="row2"><span>Render scale</span><div class="seg four" id="rscale"></div></div>
-        </section>
+      <div class="pane" data-pane="shape">
+        <div class="seg" id="shapes" style="--n:6"></div>
+        <section class="sec"><h3>Form</h3><div class="knobs" data-group="form"></div></section>
+        <section class="sec"><h3>Motion &amp; layers</h3><div class="knobs" data-group="motion"></div></section>
+        <details><summary>Quality</summary><div>
+          <div class="row" style="grid-template-columns:84px minmax(0,1fr)"><span>Mesh</span><div class="seg" id="density" style="--n:4"></div></div>
+          <div class="row" style="grid-template-columns:84px minmax(0,1fr)"><span>Resolution</span><div class="seg" id="rscale" style="--n:4"></div></div>
+        </div></details>
       </div>
 
-      <div class="pane" data-pane="mods" hidden>
-        <p class="note">Each modifier follows one frequency range of your audio (or a steady LFO) and pushes one parameter up or down. Drag a chip above onto any parameter on the Visual tab, or set it here.</p>
-        <div id="mods" style="display:flex;flex-direction:column;gap:10px"></div>
+      <div class="pane" data-pane="mod" hidden>
+        <div class="row"><label for="sens">Sensitivity</label><input id="sens" type="range" min="0.2" max="3" step="0.01"><output id="sensv"></output></div>
+        <div id="mods" style="display:flex;flex-direction:column;gap:6px"></div>
       </div>
 
       <div class="pane" data-pane="color" hidden>
-        <section class="sec"><h3>Quick themes</h3><div class="themes" id="themes"></div></section>
+        <section class="sec"><h3>Palettes <button class="btn small" id="rand" type="button">Randomize</button></h3><div class="pals" id="pals"></div></section>
         <section class="sec"><h3>Colours</h3>
-          <div class="colors">
-            <label>Core<input type="color" id="ca"></label>
-            <label>Edge<input type="color" id="cb"></label>
-            <label>Background<input type="color" id="cbg"></label>
+          <div class="stops">
+            <label>Core<input type="color" id="c1"></label>
+            <label>Glow<input type="color" id="c2"></label>
+            <label>Tips<input type="color" id="c3"></label>
+            <label>Back<input type="color" id="c4"></label>
           </div>
-          <label class="check"><input type="checkbox" id="transp"> Transparent background in recordings (WebM)</label>
+          <div class="gbar" id="gbar"></div>
         </section>
-        <section class="sec"><h3>Logo</h3>
-          <div class="urow"><label class="btn" for="logofile">Choose image</label><input id="logofile" type="file" accept="image/*" hidden><button class="btn" id="logoclear" type="button">Remove</button></div>
-          <div class="row2"><span>Position</span><select id="logopos"><option value="0">Top left</option><option value="1">Top right</option><option value="2">Bottom left</option><option value="3">Bottom right</option><option value="4">Centre</option></select></div>
-          <div class="prow"><label for="logosize">Size</label><input id="logosize" type="range" min="0.05" max="0.6" step="0.01"><output id="logosizev"></output></div>
-          <div class="prow"><label for="logoop">Opacity</label><input id="logoop" type="range" min="0.1" max="1" step="0.01"><output id="logoopv"></output></div>
-          <p class="note">The logo is drawn into your recordings too.</p>
+        <section class="sec"><h3>Colour mode</h3>
+          <div class="seg" id="cmode" style="--n:4"></div>
+          <p class="note" id="cmodenote"></p>
+          <div class="row" id="cspeedrow"><label for="cspeed">Speed</label><input id="cspeed" type="range" min="0.01" max="0.5" step="0.005"><output id="cspeedv"></output></div>
         </section>
+        <section class="sec"><h3>Light</h3><div class="knobs" data-group="light" style="grid-template-columns:repeat(4,minmax(0,1fr))"></div></section>
+        <details><summary>Logo</summary><div>
+          <div style="display:flex;gap:6px"><label class="btn small" for="logofile">Choose image</label><input id="logofile" type="file" accept="image/*" hidden><button class="btn small" id="logoclear" type="button">Remove</button></div>
+          <div class="row" style="grid-template-columns:84px minmax(0,1fr)"><span>Position</span><select id="logopos"><option value="0">Top left</option><option value="1">Top right</option><option value="2">Bottom left</option><option value="3">Bottom right</option><option value="4">Centre</option></select></div>
+          <div class="row"><label for="logosize">Size</label><input id="logosize" type="range" min="0.05" max="0.6" step="0.01"><output id="logosizev"></output></div>
+          <div class="row"><label for="logoop">Opacity</label><input id="logoop" type="range" min="0.1" max="1" step="0.01"><output id="logoopv"></output></div>
+        </div></details>
       </div>
 
       <div class="pane" data-pane="presets" hidden>
-        <section class="sec"><h3>Factory</h3><div class="grid5" id="factory"></div></section>
-        <section class="sec"><h3>Your presets</h3>
-          <div class="urow"><input type="text" id="uname" placeholder="Preset name" maxlength="28" aria-label="Preset name"><button class="btn" id="usave" type="button">Save</button></div>
+        <section class="sec"><h3>Factory</h3><div class="presets" id="factory"></div></section>
+        <section class="sec"><h3>Yours</h3>
+          <div style="display:flex;gap:6px"><input type="text" id="uname" placeholder="Preset name" maxlength="28" aria-label="Preset name"><button class="btn small" id="usave" type="button">Save</button></div>
           <div class="ulist" id="ulist"></div>
         </section>
-        <section class="sec"><h3>Auto play</h3>
-          <div class="row2"><span>Change every</span><select id="cycle"><option value="0">Off</option><option value="8">8 seconds</option><option value="16">16 seconds</option><option value="32">32 seconds</option><option value="64">64 seconds</option></select></div>
-        </section>
+        <div class="row" style="grid-template-columns:84px minmax(0,1fr)"><span>Auto play</span><select id="cycle"><option value="0">Off</option><option value="8">Every 8 s</option><option value="16">Every 16 s</option><option value="32">Every 32 s</option><option value="64">Every 64 s</option></select></div>
       </div>
 
-      <div class="pane" data-pane="record" hidden>
+      <div class="pane" data-pane="export" hidden>
         <section class="sec"><h3>Format</h3><div class="seg" id="rformat"></div></section>
-        <section class="sec"><h3>Resolution</h3><div class="seg four" id="rres"></div></section>
+        <section class="sec"><h3>Resolution</h3><div class="seg" id="rres" style="--n:4"></div></section>
         <section class="sec"><h3>Frame rate</h3><div class="seg" id="rfps"></div></section>
-        <p class="note" id="recnote">Recordings include the audio you're playing. High resolutions and frame rates depend on your computer's graphics card; if the video stutters, step down one.</p>
-        <p class="note plugin-only">In the plugin, videos are saved to Movies/Sphere Visualizer with a matching WAV of the track, ready to line up in any video editor.</p>
+        <label class="check"><input type="checkbox" id="transp"> Transparent background (WebM)</label>
+        <button class="btn rec recbig" id="rec2" type="button"><span class="dot"></span><span id="rect2">Start recording</span></button>
+        <p class="note web-only">The recording includes the audio you're playing. High resolutions and frame rates depend on your graphics card; if the video stutters, step down one.</p>
+        <p class="note plugin-only">Videos are saved to Movies/Sphere Visualizer with a matching WAV of the track.</p>
       </div>
     </div>
+    <div class="dock" id="dock"></div>
   </aside>
 </div>
 
@@ -210,67 +237,87 @@ body.in-plugin .plugin-only { display: revert !important; }
 'use strict';
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const esc = s => String(s).replace(/[<&>"]/g, '');
 
 // ===== Parameter model (must match plugin/Source/PluginProcessor.h) =====
 const SHAPES = ['Sphere', 'Cube', 'Diamond', 'Torus', 'Knot', 'Plane'];
 const DENSITY = ['Low', 'Medium', 'High', 'Ultra'];
 const RSCALE = [0.5, 0.75, 1, 1.5];
 const VIS = [
-  { id: 'zoom', name: 'Zoom', min: 0.4, max: 2, def: 1 },
-  { id: 'disp', name: 'Displacement', min: 0, max: 1, def: 0.2 },
-  { id: 'detail', name: 'Detail', min: 0.3, max: 6, def: 1.5 },
-  { id: 'flow', name: 'Flow speed', min: 0, max: 3, def: 0.4 },
-  { id: 'spin', name: 'Spin', min: -2, max: 2, def: 0.15 },
-  { id: 'tilt', name: 'Tilt', min: -1.5, max: 1.5, def: 0.2 },
-  { id: 'twist', name: 'Twist', min: -3, max: 3, def: 0 },
-  { id: 'hue', name: 'Hue shift', min: 0, max: 1, def: 0 },
-  { id: 'glow', name: 'Glow', min: 0, max: 2, def: 0.5 },
-  { id: 'wire', name: 'Wireframe', min: 0, max: 1, def: 0.3 },
-  { id: 'particles', name: 'Particles', min: 0, max: 1, def: 0.5 },
+  { id: 'zoom', name: 'Zoom', min: 0.4, max: 2, def: 1, g: 'form' },
+  { id: 'disp', name: 'Displace', min: 0, max: 1, def: 0.3, g: 'form' },
+  { id: 'spikes', name: 'Spikes', min: 0, max: 1, def: 0.35, g: 'form' },
+  { id: 'detail', name: 'Detail', min: 0.3, max: 6, def: 1.6, g: 'form' },
+  { id: 'twist', name: 'Twist', min: -3, max: 3, def: 0, g: 'form' },
+  { id: 'flow', name: 'Flow', min: 0, max: 3, def: 0.5, g: 'motion' },
+  { id: 'spin', name: 'Spin', min: -2, max: 2, def: 0.12, g: 'motion' },
+  { id: 'tilt', name: 'Tilt', min: -1.5, max: 1.5, def: 0.2, g: 'motion' },
+  { id: 'fluff', name: 'Fluff', min: 0, max: 1, def: 0.6, g: 'motion' },
+  { id: 'shards', name: 'Shards', min: 0, max: 1, def: 0.3, g: 'motion' },
+  { id: 'particles', name: 'Particles', min: 0, max: 1, def: 0.4, g: 'motion' },
+  { id: 'glow', name: 'Glow', min: 0, max: 2, def: 0.9, g: 'light' },
+  { id: 'bright', name: 'Bright', min: 0.2, max: 3, def: 1, g: 'light' },
+  { id: 'hue', name: 'Hue', min: 0, max: 1, def: 0, g: 'light' },
+  { id: 'sat', name: 'Saturate', min: 0, max: 2, def: 1, g: 'light' },
 ];
 const VI = Object.fromEntries(VIS.map((v, i) => [v.id, i]));
 const RANGES = [['Sub', 20, 60], ['Bass', 60, 150], ['Low mid', 150, 800], ['Mid', 800, 2000], ['High mid', 2000, 4000], ['Presence', 4000, 8000], ['Air', 8000, 16000]];
 const NMOD = 8;
+const MODDEF = { on: 0, src: 0, lo: 60, hi: 150, rate: 0.5, tgt: 0, amt: 0.5, bend: 0.3, thr: 0.05, att: 10, rel: 180 };
+const CURVES = { Linear: [0, 0], Punchy: [0.6, 0.12], Smooth: [-0.5, 0], Gate: [1, 0.45] };
 
-const P = { shape: 0, density: 2, rscale: 2, sens: 1.2, smooth: 0.55 };
+const P = { shape: 0, density: 2, rscale: 2, sens: 1.2 };
 VIS.forEach(v => (P[v.id] = v.def));
-for (let i = 1; i <= NMOD; i++) Object.assign(P, { ['m' + i + '_on']: 0, ['m' + i + '_src']: 0, ['m' + i + '_lo']: 60, ['m' + i + '_hi']: 150, ['m' + i + '_rate']: 0.5, ['m' + i + '_tgt']: 0, ['m' + i + '_amt']: 0.5 });
+for (let i = 1; i <= NMOD; i++) for (const k in MODDEF) P['m' + i + '_' + k] = MODDEF[k];
+const mp = (i, k) => P['m' + i + '_' + k];
 
-// Non-automatable look/settings (saved with the plugin state as one JSON string)
-const UI = { a: '#3cf0ff', b: '#7a5cff', bg: '#06070b', transparent: false, logo: null, logoPos: 3, logoSize: 0.16, logoOpacity: 0.9,
-  recFormat: 0, recRes: 1, recFps: 1, preset: 'Nebula', cycle: 0 };
+// Look settings that aren't automatable (saved with the plugin state as JSON)
+const UI = { c1: '#ff3ccf', c2: '#3c7bff', c3: '#ff9a4a', c4: '#05040a', cmode: 0, cspeed: 0.05, transparent: false,
+  logo: null, logoPos: 3, logoSize: 0.16, logoOpacity: 0.9, recFormat: 0, recRes: 1, recFps: 1, preset: 'Supernova', cycle: 0 };
+
+const PALETTES = [
+  ['Supernova', '#ff3ccf', '#3c7bff', '#ff9a4a', '#05040a'], ['Aurora', '#3cf0ff', '#7a5cff', '#b6ff9e', '#04060b'],
+  ['Ember', '#ffb347', '#ff2e4d', '#ffe7a3', '#0b0505'], ['Toxic', '#c4ff3c', '#00b89c', '#f6ff8a', '#040805'],
+  ['Vapor', '#ff6ad5', '#5d7bff', '#9ffcff', '#08060d'], ['Ice', '#e8fbff', '#3c8bff', '#8fe9ff', '#03060b'],
+  ['Solar', '#ffe600', '#ff6a00', '#ffffff', '#0b0700'], ['Abyss', '#00ffc6', '#0b3cff', '#7a5cff', '#020818'],
+  ['Rose', '#ff8aa8', '#ff2e63', '#ffd1dc', '#0a0306'], ['Mono', '#ffffff', '#7d8396', '#ffffff', '#000000'],
+  ['Blood', '#ff2e2e', '#5a0010', '#ff8a5c', '#000000'], ['Lime Sky', '#7cff6a', '#2ad3ff', '#ffffff', '#03070a'],
+  ['Sunset', '#ff5f6d', '#ffc371', '#7a5cff', '#0a0508'], ['Galaxy', '#b48cff', '#3a1cff', '#ff6ad5', '#05030c'],
+];
+const CMODES = [['Static', 'Colours stay as set.'], ['Cycle', 'Hue rotates slowly through the colour wheel.'],
+  ['Spectrum', 'Each layer takes a different hue, from core to tips.'], ['Reactive', 'Hue swings with the loudness of the music.']];
 
 // ===== Factory presets =====
-// mods: [rangeIndex | 'lfo', target, amount, lfoRateHz]
-const FX = (name, shape, a, b, bg, vis, mods) => ({ name, shape, a, b, bg, vis, mods });
+// m: { b: rangeIndex | lfo: rateHz, t: target, a: amount, c: curve name, att, rel }
+const pal = n => PALETTES.find(p => p[0] === n).slice(1);
+const FX = (name, shape, colors, cmode, vis, mods) => ({ name, shape, colors, cmode, vis, mods });
 const FACTORY = [
-  FX('Nebula', 0, '#3cf0ff', '#7a5cff', '#06070b', { disp: 0.15, wire: 0.3 }, [[1, 'zoom', 0.45], [2, 'disp', 0.55], [4, 'detail', 0.25], [6, 'particles', 0.8], [5, 'hue', 0.25]]),
-  FX('Magma', 0, '#ffb347', '#ff2e4d', '#0b0505', { disp: 0.35, detail: 1.1, flow: 0.9, glow: 0.8, wire: 0.1 }, [[1, 'disp', 0.6], [3, 'glow', 0.5], [0, 'zoom', 0.3]]),
-  FX('Ice Cube', 1, '#bdf6ff', '#3c8bff', '#05080d', { disp: 0.05, wire: 0.7, spin: 0.3, tilt: 0.5 }, [[1, 'zoom', 0.4], [5, 'spin', 0.5], [6, 'particles', 0.7]]),
-  FX('Prism', 2, '#ff6ad5', '#5d7bff', '#08060d', { disp: 0.08, wire: 0.5, spin: 0.4 }, [[1, 'twist', 0.35], [5, 'hue', 0.4], [2, 'glow', 0.4]]),
-  FX('Halo', 3, '#ffe08a', '#ffffff', '#0a0906', { disp: 0.1, tilt: 0.9, wire: 0.25 }, [[1, 'zoom', 0.4], [3, 'twist', 0.3], [6, 'particles', 0.8]]),
-  FX('Knotwork', 4, '#c4ff3c', '#00b89c', '#050a07', { disp: 0.12, zoom: 0.9, spin: 0.35 }, [[1, 'disp', 0.5], [5, 'spin', 0.5], [3, 'glow', 0.4]]),
-  FX('Terrain', 5, '#3cf0ff', '#2348ff', '#04060c', { disp: 0.45, detail: 0.9, tilt: 0.6, spin: 0.05, wire: 0.6, zoom: 0.8 }, [[1, 'disp', 0.6], [3, 'detail', 0.3], [6, 'particles', 0.6]]),
-  FX('Pulse', 0, '#ffffff', '#7d8396', '#000000', { disp: 0.04, wire: 0.15, glow: 0.3 }, [[1, 'zoom', 0.8], [0, 'glow', 0.7]]),
-  FX('Jelly', 0, '#ff8adf', '#ffd36a', '#0c0610', { disp: 0.45, detail: 0.8, flow: 0.6, wire: 0 }, [[1, 'disp', 0.4], ['lfo', 'twist', 0.4, 0.15], [3, 'zoom', 0.2]]),
-  FX('Static', 0, '#ffffff', '#ff2e4d', '#050505', { disp: 0.12, detail: 5, flow: 2, wire: 0.2 }, [[5, 'disp', 0.6], [1, 'zoom', 0.3], [6, 'hue', 0.2]]),
-  FX('Deep Sea', 0, '#00ffc6', '#0b3cff', '#020818', { disp: 0.25, detail: 1.2, flow: 0.3, glow: 0.7 }, [['lfo', 'tilt', 0.4, 0.08], [1, 'glow', 0.6], [2, 'disp', 0.4], [6, 'particles', 0.9]]),
-  FX('Solar', 0, '#ffe600', '#ff6a00', '#0d0700', { disp: 0.2, glow: 1.3, flow: 0.7 }, [[1, 'glow', 0.6], [3, 'disp', 0.5], [0, 'zoom', 0.35]]),
-  FX('Glass Cube', 1, '#ffffff', '#9ad7ff', '#05070a', { disp: 0, wire: 1, glow: 0.2, particles: 0.2 }, [['lfo', 'spin', 0.6, 0.1], [1, 'zoom', 0.35], [4, 'glow', 0.5]]),
-  FX('Spiral', 3, '#ff6ad5', '#3cf0ff', '#07060c', { twist: 1.6, disp: 0.1, tilt: 0.6 }, [[1, 'twist', 0.5], [3, 'zoom', 0.3], ['lfo', 'hue', 0.3, 0.05]]),
-  FX('Crystal', 2, '#ffffff', '#4fa8ff', '#04060a', { disp: 0.03, wire: 0.8, glow: 0.4, spin: 0.25 }, [[5, 'glow', 0.7], [1, 'zoom', 0.35], [6, 'particles', 0.9]]),
-  FX('Wave Grid', 5, '#7cf3ff', '#7a5cff', '#05060b', { disp: 0.3, detail: 1.4, wire: 1, tilt: 0.5, spin: 0, zoom: 0.8 }, [[2, 'disp', 0.6], [1, 'zoom', 0.15], [5, 'detail', 0.3]]),
-  FX('Orbit', 4, '#b48cff', '#3a1cff', '#06040d', { disp: 0.08, zoom: 0.85, spin: 0.5 }, [[1, 'zoom', 0.4], ['lfo', 'hue', 0.5, 0.04], [5, 'particles', 0.8]]),
-  FX('Ghost', 0, '#e8ecff', '#5c6480', '#020203', { disp: 0.2, glow: 0.15, wire: 0.5, particles: 0.2 }, [[3, 'wire', 0.5], [1, 'disp', 0.4]]),
-  FX('Acid', 0, '#c4ff3c', '#ff00b8', '#050505', { disp: 0.25, detail: 3, flow: 1.5 }, [[4, 'disp', 0.6], [1, 'zoom', 0.35], [5, 'hue', 0.5]]),
-  FX('Bloom', 0, '#ff6ad5', '#5d7bff', '#08050c', { disp: 0.15, glow: 1.4, wire: 0.15 }, [[1, 'glow', 0.6], [6, 'particles', 1], [2, 'disp', 0.4]]),
-  FX('Storm', 0, '#9fd8ff', '#3b4a66', '#030408', { disp: 0.3, detail: 2.2, flow: 1.2, wire: 0.4 }, [[5, 'disp', 0.6], [1, 'spin', 0.6], [0, 'glow', 0.6]]),
-  FX('Ripple', 5, '#ff8a5c', '#ff3d9a', '#0b0507', { disp: 0.35, detail: 0.7, tilt: 0.7, wire: 0.3, zoom: 0.8 }, [[1, 'disp', 0.6], ['lfo', 'twist', 0.3, 0.07], [5, 'particles', 0.6]]),
-  FX('Vortex', 3, '#ff2e4d', '#2a0010', '#000000', { twist: -1.2, tilt: 0.3, disp: 0.12 }, [[1, 'spin', 0.7], [3, 'twist', 0.5], [0, 'glow', 0.5]]),
-  FX('Heartbeat', 0, '#ff2e4d', '#ff8a9a', '#080203', { disp: 0.06, glow: 0.5, wire: 0.1 }, [[1, 'zoom', 1], [0, 'glow', 0.8], [3, 'disp', 0.2]]),
-  FX('Drift', 4, '#ffd1f0', '#a8e6ff', '#0a0b12', { disp: 0.15, flow: 0.2, spin: 0.1, zoom: 0.85 }, [['lfo', 'disp', 0.4, 0.06], ['lfo', 'hue', 0.4, 0.03], ['lfo', 'zoom', 0.15, 0.11]]),
+  FX('Supernova', 0, pal('Supernova'), 0, { disp: 0.3, spikes: 0.45, fluff: 0.7, shards: 0.35, glow: 1.1 }, [{ b: 1, t: 'zoom', a: 0.35, c: 'Punchy' }, { b: 1, t: 'spikes', a: 0.6, c: 'Punchy' }, { b: 2, t: 'disp', a: 0.4 }, { b: 5, t: 'shards', a: 0.5 }, { b: 6, t: 'particles', a: 0.7 }]),
+  FX('Nebula', 0, pal('Aurora'), 0, { disp: 0.25, spikes: 0.2, fluff: 0.8, shards: 0.15, glow: 1 }, [{ b: 1, t: 'zoom', a: 0.4 }, { b: 2, t: 'disp', a: 0.5 }, { b: 6, t: 'particles', a: 0.8 }, { lfo: 0.04, t: 'hue', a: 0.2 }]),
+  FX('Magma', 0, pal('Ember'), 0, { disp: 0.45, detail: 1.1, flow: 0.9, spikes: 0.25, glow: 1.2 }, [{ b: 1, t: 'disp', a: 0.5, c: 'Punchy' }, { b: 3, t: 'glow', a: 0.5 }, { b: 0, t: 'zoom', a: 0.3 }]),
+  FX('Urchin', 0, pal('Toxic'), 0, { disp: 0.1, spikes: 0.8, fluff: 0.4, detail: 2.5 }, [{ b: 1, t: 'spikes', a: 0.6, c: 'Gate' }, { b: 5, t: 'detail', a: 0.3 }, { b: 6, t: 'shards', a: 0.6 }]),
+  FX('Ice Cube', 1, pal('Ice'), 0, { disp: 0.05, spikes: 0.15, shards: 0.7, spin: 0.3, tilt: 0.5 }, [{ b: 1, t: 'zoom', a: 0.35, c: 'Punchy' }, { b: 5, t: 'spin', a: 0.5 }, { b: 6, t: 'particles', a: 0.7 }]),
+  FX('Prism', 2, pal('Vapor'), 2, { disp: 0.08, spikes: 0.3, shards: 0.5, spin: 0.4 }, [{ b: 1, t: 'twist', a: 0.3 }, { b: 5, t: 'hue', a: 0.3 }, { b: 2, t: 'glow', a: 0.4 }]),
+  FX('Halo', 3, pal('Solar'), 0, { disp: 0.12, spikes: 0.25, tilt: 0.9, fluff: 0.6 }, [{ b: 1, t: 'zoom', a: 0.4 }, { b: 3, t: 'twist', a: 0.3 }, { b: 6, t: 'particles', a: 0.8 }]),
+  FX('Knotwork', 4, pal('Lime Sky'), 0, { disp: 0.12, zoom: 0.9, spin: 0.35, spikes: 0.3 }, [{ b: 1, t: 'disp', a: 0.5 }, { b: 5, t: 'spin', a: 0.5 }, { b: 3, t: 'spikes', a: 0.5 }]),
+  FX('Terrain', 5, pal('Abyss'), 0, { disp: 0.5, detail: 0.9, tilt: 0.6, spin: 0.05, shards: 0.5, zoom: 0.8, spikes: 0.25 }, [{ b: 1, t: 'disp', a: 0.6 }, { b: 3, t: 'detail', a: 0.3 }, { b: 6, t: 'spikes', a: 0.5 }]),
+  FX('Pulse', 0, pal('Mono'), 0, { disp: 0.05, spikes: 0.2, fluff: 0.5, glow: 0.7 }, [{ b: 1, t: 'zoom', a: 0.8, c: 'Gate', rel: 120 }, { b: 0, t: 'glow', a: 0.7 }]),
+  FX('Jelly', 0, pal('Rose'), 0, { disp: 0.55, detail: 0.8, flow: 0.6, spikes: 0.05, shards: 0, fluff: 0.9 }, [{ b: 1, t: 'disp', a: 0.4, c: 'Smooth', rel: 400 }, { lfo: 0.15, t: 'twist', a: 0.4 }]),
+  FX('Static', 0, ['#ffffff', '#ff2e4d', '#ffffff', '#050505'], 0, { disp: 0.12, detail: 5, flow: 2, spikes: 0.4, shards: 0.3 }, [{ b: 5, t: 'disp', a: 0.6 }, { b: 6, t: 'spikes', a: 0.6, c: 'Gate' }, { b: 1, t: 'zoom', a: 0.3 }]),
+  FX('Deep Sea', 0, pal('Abyss'), 0, { disp: 0.3, detail: 1.2, flow: 0.3, glow: 1.2, fluff: 0.85 }, [{ lfo: 0.08, t: 'tilt', a: 0.4 }, { b: 1, t: 'glow', a: 0.6 }, { b: 2, t: 'disp', a: 0.4 }, { b: 6, t: 'particles', a: 0.9 }]),
+  FX('Solar Flare', 0, pal('Solar'), 0, { disp: 0.25, glow: 1.5, flow: 0.7, spikes: 0.55 }, [{ b: 1, t: 'glow', a: 0.6 }, { b: 3, t: 'spikes', a: 0.5, c: 'Punchy' }, { b: 0, t: 'zoom', a: 0.35 }]),
+  FX('Glass Cube', 1, pal('Ice'), 0, { disp: 0, shards: 1, glow: 0.6, particles: 0.2, spikes: 0.1, fluff: 0.3 }, [{ lfo: 0.1, t: 'spin', a: 0.6 }, { b: 1, t: 'zoom', a: 0.35 }, { b: 4, t: 'glow', a: 0.5 }]),
+  FX('Spiral', 3, pal('Vapor'), 1, { twist: 1.6, disp: 0.1, tilt: 0.6, spikes: 0.3 }, [{ b: 1, t: 'twist', a: 0.5 }, { b: 3, t: 'zoom', a: 0.3 }]),
+  FX('Crystal', 2, ['#ffffff', '#4fa8ff', '#c9e8ff', '#04060a'], 0, { disp: 0.03, shards: 0.8, glow: 0.8, spin: 0.25, spikes: 0.2 }, [{ b: 5, t: 'glow', a: 0.7 }, { b: 1, t: 'zoom', a: 0.35 }, { b: 6, t: 'particles', a: 0.9 }]),
+  FX('Wave Grid', 5, pal('Galaxy'), 0, { disp: 0.35, detail: 1.4, shards: 1, tilt: 0.5, spin: 0, zoom: 0.8, spikes: 0.1 }, [{ b: 2, t: 'disp', a: 0.6 }, { b: 5, t: 'detail', a: 0.3 }]),
+  FX('Orbit', 4, pal('Galaxy'), 1, { disp: 0.08, zoom: 0.85, spin: 0.5, spikes: 0.35 }, [{ b: 1, t: 'zoom', a: 0.4 }, { b: 5, t: 'particles', a: 0.8 }]),
+  FX('Ghost', 0, ['#e8ecff', '#5c6480', '#ffffff', '#020203'], 0, { disp: 0.2, glow: 0.4, shards: 0.5, particles: 0.2, fluff: 0.4, sat: 0.4 }, [{ b: 3, t: 'shards', a: 0.5 }, { b: 1, t: 'disp', a: 0.4, c: 'Smooth' }]),
+  FX('Acid', 0, pal('Toxic'), 3, { disp: 0.3, detail: 3, flow: 1.5, spikes: 0.4 }, [{ b: 4, t: 'disp', a: 0.6 }, { b: 1, t: 'zoom', a: 0.35, c: 'Punchy' }]),
+  FX('Bloom', 0, pal('Vapor'), 2, { disp: 0.2, glow: 1.8, spikes: 0.3, fluff: 0.8 }, [{ b: 1, t: 'glow', a: 0.6 }, { b: 6, t: 'particles', a: 1 }, { b: 2, t: 'disp', a: 0.4 }]),
+  FX('Storm', 0, ['#9fd8ff', '#3b4a66', '#ffffff', '#030408'], 0, { disp: 0.3, detail: 2.2, flow: 1.2, shards: 0.5, spikes: 0.5 }, [{ b: 5, t: 'spikes', a: 0.6, c: 'Gate' }, { b: 1, t: 'spin', a: 0.6 }, { b: 0, t: 'glow', a: 0.6 }]),
+  FX('Heartbeat', 0, pal('Blood'), 0, { disp: 0.06, glow: 1, spikes: 0.2, fluff: 0.7 }, [{ b: 1, t: 'zoom', a: 1, c: 'Gate', rel: 220 }, { b: 0, t: 'glow', a: 0.8, c: 'Punchy' }]),
+  FX('Drift', 4, ['#ffd1f0', '#a8e6ff', '#fff3b0', '#0a0b12'], 1, { disp: 0.15, flow: 0.2, spin: 0.1, zoom: 0.85, spikes: 0.2 }, [{ lfo: 0.06, t: 'disp', a: 0.4 }, { lfo: 0.11, t: 'zoom', a: 0.15 }]),
 ];
-const THEMES = [['#3cf0ff', '#7a5cff'], ['#ffb347', '#ff2e4d'], ['#c4ff3c', '#00b89c'], ['#ff6ad5', '#5d7bff'], ['#ffffff', '#7d8396'], ['#ffe600', '#ff6a00'], ['#00ffc6', '#0b3cff']];
 
 // ===== Host bridge =====
 const juce = () => window.__JUCE__ && window.__JUCE__.backend;
@@ -281,218 +328,295 @@ function saveUI() {
   clearTimeout(uiTimer);
   uiTimer = setTimeout(() => {
     if (juce()) juce().emitEvent('ui', JSON.stringify(UI));
-    else try { localStorage.setItem('sphere-ui', JSON.stringify(UI)); } catch (e) {}
+    else try { localStorage.setItem('sphere-ui-v3', JSON.stringify(UI)); } catch (e) {}
   }, 250);
 }
 function setParam(id, v) { P[id] = v; sendParam(id); render(); }
+function setUI(k, v) { UI[k] = v; saveUI(); render(); }
+const fmt = (v, d = 2) => (+v).toFixed(d);
+function setStatus(t) { $('status').textContent = t; }
 
 // ===== Build UI =====
-const fmt = (v, d = 2) => (+v).toFixed(d);
-$('shapes').innerHTML = SHAPES.map((s, i) => `<button type="button" data-v="${i}">${s}</button>`).join('');
-$('density').innerHTML = DENSITY.map((s, i) => `<button type="button" data-v="${i}">${s}</button>`).join('');
-$('rscale').innerHTML = RSCALE.map((s, i) => `<button type="button" data-v="${i}">${s * 100}%</button>`).join('');
-$('rformat').innerHTML = ['Landscape 16:9', 'Vertical 9:16', 'Square 1:1'].map((s, i) => `<button type="button" data-v="${i}">${s}</button>`).join('');
-$('rres').innerHTML = ['720p', '1080p', '1440p', '4K'].map((s, i) => `<button type="button" data-v="${i}">${s}</button>`).join('');
-$('rfps').innerHTML = ['30 fps', '60 fps', '120 fps'].map((s, i) => `<button type="button" data-v="${i}">${s}</button>`).join('');
-$('vis').innerHTML = VIS.map(v => `<div class="prow" data-param="${v.id}"><label for="v_${v.id}">${v.name}</label>
-  <input id="v_${v.id}" type="range" min="${v.min}" max="${v.max}" step="0.01"><output id="o_${v.id}"></output><div class="badges" id="bd_${v.id}"></div></div>`).join('');
-$('chips').innerHTML = Array.from({ length: NMOD }, (_, k) => `<button type="button" class="chip" data-m="${k + 1}" id="chip${k + 1}"><b>M${k + 1}</b><small id="chipt${k + 1}"></small><span class="lv" id="chiplv${k + 1}"></span></button>`).join('')
-  + '<p class="chiphint">Drag a modifier onto a parameter, or tap it to edit.</p>';
-const rangeOpts = RANGES.map((r, i) => `<option value="${i}">${r[0]} ${r[1]}&ndash;${r[2] >= 1000 ? r[2] / 1000 + 'k' : r[2]}</option>`).join('') + '<option value="-1">Custom</option>';
-$('mods').innerHTML = Array.from({ length: NMOD }, (_, k) => { const i = k + 1; return `<div class="mod" id="mod${i}">
-  <div class="hd"><b>M${i}</b><label class="check"><input type="checkbox" id="m${i}_on"> On</label><span class="mlv"><i id="mlv${i}"></i></span></div>
-  <span>Source</span><select id="m${i}_src"><option value="0">Audio band</option><option value="1">LFO</option></select>
-  <span class="aud${i}">Range</span><select class="aud${i}" id="m${i}_preset">${rangeOpts}</select>
-  <span class="aud${i}">Hz</span><div class="two aud${i}"><input type="number" id="m${i}_lo" min="20" max="20000" aria-label="M${i} low Hz"><input type="number" id="m${i}_hi" min="20" max="20000" aria-label="M${i} high Hz"></div>
-  <span class="lfo${i}">Rate</span><div class="prow lfo${i}" style="grid-template-columns:minmax(0,1fr) 54px;margin:0;padding:0"><input type="range" id="m${i}_rate" min="0.02" max="8" step="0.01" aria-label="M${i} LFO rate"><output id="m${i}_ratev"></output></div>
-  <span>Target</span><select id="m${i}_tgt">${VIS.map((v, j) => `<option value="${j}">${v.name}</option>`).join('')}</select>
-  <span>Amount</span><div class="prow" style="grid-template-columns:minmax(0,1fr) 44px;margin:0;padding:0"><input type="range" id="m${i}_amt" min="-1" max="1" step="0.01" aria-label="M${i} amount"><output id="m${i}_amtv"></output></div>
-</div>`; }).join('');
-$('factory').innerHTML = FACTORY.map((p, i) => `<button type="button" class="pbtn" data-i="${i}"><i style="background:linear-gradient(90deg,${p.a},${p.b})"></i>${p.name}</button>`).join('');
-$('themes').innerHTML = THEMES.map((t, i) => `<button class="sw" type="button" data-i="${i}" aria-label="Theme ${i + 1}" style="background:linear-gradient(135deg,${t[0]},${t[1]})"></button>`).join('');
+function segFill(id, labels, fn) {
+  $(id).innerHTML = labels.map((s, i) => `<button type="button" data-v="${i}">${s}</button>`).join('');
+  $(id).addEventListener('click', e => { const b = e.target.closest('button'); if (b) fn(+b.dataset.v); });
+}
+segFill('shapes', SHAPES, v => setParam('shape', v));
+segFill('density', DENSITY, v => setParam('density', v));
+segFill('rscale', RSCALE.map(s => s * 100 + '%'), v => setParam('rscale', v));
+segFill('rformat', ['16:9', '9:16', '1:1'], v => setUI('recFormat', v));
+segFill('rres', ['720p', '1080p', '1440p', '4K'], v => setUI('recRes', v));
+segFill('rfps', ['30', '60', '120'], v => setUI('recFps', v));
+segFill('cmode', CMODES.map(c => c[0]), v => setUI('cmode', v));
+
+// knobs
+const A0 = -2.356, A1 = 2.356;
+function arc(r, a, b) {
+  if (b < a) [a, b] = [b, a];
+  if (b - a < 0.001) b = a + 0.001;
+  const x0 = 30 + r * Math.sin(a), y0 = 30 - r * Math.cos(a), x1 = 30 + r * Math.sin(b), y1 = 30 - r * Math.cos(b);
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${b - a > Math.PI ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+const frac = (v, p) => (v - p.min) / (p.max - p.min);
+const ang = f => A0 + (A1 - A0) * clamp(f, 0, 1);
+document.querySelectorAll('.knobs').forEach(box => {
+  box.innerHTML = VIS.filter(v => v.g === box.dataset.group).map(v => `<div class="knob" data-param="${v.id}" role="slider" tabindex="0" aria-label="${v.name}" aria-valuemin="${v.min}" aria-valuemax="${v.max}">
+    <svg viewBox="0 0 60 60"><path class="trk" stroke-width="4" d="${arc(22, A0, A1)}"/><path class="val" stroke-width="4"/><path class="mod" stroke-width="2.5"/><line class="ptr" stroke-width="2.5" x1="30" y1="30"/></svg>
+    <span class="kl">${v.name}</span><span class="kv"></span><span class="kb"></span></div>`).join('');
+});
+const knobEls = {};
+document.querySelectorAll('.knob').forEach(k => {
+  const id = k.dataset.param, p = VIS[VI[id]];
+  knobEls[id] = { el: k, val: k.querySelector('.val'), mod: k.querySelector('.mod'), ptr: k.querySelector('.ptr'), kv: k.querySelector('.kv'), kb: k.querySelector('.kb') };
+  let start = null;
+  k.addEventListener('pointerdown', e => { if (e.target.closest('.kb span')) return; start = { y: e.clientY, v: P[id] }; k.setPointerCapture(e.pointerId); });
+  k.addEventListener('pointermove', e => {
+    if (!start) return;
+    const dv = (start.y - e.clientY) / 160 * (p.max - p.min) * (e.shiftKey ? 0.2 : 1);
+    setParam(id, clamp(start.v + dv, p.min, p.max));
+  });
+  k.addEventListener('pointerup', () => (start = null));
+  k.addEventListener('pointercancel', () => (start = null));
+  k.addEventListener('dblclick', () => setParam(id, p.def));
+  k.addEventListener('wheel', e => { e.preventDefault(); setParam(id, clamp(P[id] - Math.sign(e.deltaY) * (p.max - p.min) / 50, p.min, p.max)); }, { passive: false });
+  k.addEventListener('keydown', e => {
+    const s = (p.max - p.min) / (e.shiftKey ? 200 : 50);
+    if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { setParam(id, clamp(P[id] + s, p.min, p.max)); e.preventDefault(); }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { setParam(id, clamp(P[id] - s, p.min, p.max)); e.preventDefault(); }
+  });
+  k.querySelector('.kb').addEventListener('click', e => { const s = e.target.closest('span'); if (s) openMod(+s.dataset.m); });
+});
+function drawKnob(id, base, live) {
+  const p = VIS[VI[id]], K = knobEls[id];
+  const zero = p.min < 0 ? frac(0, p) : 0, f = frac(base, p);
+  K.val.setAttribute('d', arc(22, ang(zero), ang(f)));
+  const a = ang(f);
+  K.ptr.setAttribute('x2', (30 + 13 * Math.sin(a)).toFixed(2)); K.ptr.setAttribute('y2', (30 - 13 * Math.cos(a)).toFixed(2));
+  const fl = frac(live, p);
+  if (Math.abs(fl - f) > 0.004) { K.mod.setAttribute('d', arc(28, ang(f), ang(fl))); K.mod.style.display = ''; } else K.mod.style.display = 'none';
+}
+
+// modulation list
+const rangeOpts = RANGES.map((r, i) => `<option value="${i}">${r[0]} (${r[1]}&ndash;${r[2] >= 1000 ? r[2] / 1000 + 'k' : r[2]} Hz)</option>`).join('') + '<option value="-1">Custom</option>';
+$('mods').innerHTML = Array.from({ length: NMOD }, (_, k) => { const i = k + 1; return `<div class="mi" id="mi${i}">
+  <div class="mh" data-m="${i}"><input type="checkbox" class="sw2" id="m${i}_on" aria-label="M${i} on"><b>M${i}</b><span class="msum" id="msum${i}"></span><span class="mm"><i id="mm${i}"></i></span><span class="chev" id="chev${i}">&#9662;</span></div>
+  <div class="mb" id="mb${i}" hidden>
+    <div class="seg" id="m${i}_srcseg" style="--n:2"><button type="button" data-v="0">Audio band</button><button type="button" data-v="1">LFO</button></div>
+    <div class="aud${i}"><select id="m${i}_preset" aria-label="M${i} band">${rangeOpts}</select></div>
+    <div class="two aud${i}"><input type="number" id="m${i}_lo" min="20" max="20000" aria-label="M${i} low Hz"><input type="number" id="m${i}_hi" min="20" max="20000" aria-label="M${i} high Hz"></div>
+    <div class="row lfo${i}"><label for="m${i}_rate">Rate</label><input type="range" id="m${i}_rate" min="0.02" max="8" step="0.01"><output id="m${i}_ratev"></output></div>
+    <div class="row" style="grid-template-columns:84px minmax(0,1fr)"><label for="m${i}_tgt">Target</label><select id="m${i}_tgt">${VIS.map((v, j) => `<option value="${j}">${v.name}</option>`).join('')}</select></div>
+    <div class="row"><label for="m${i}_amt">Amount</label><input type="range" id="m${i}_amt" min="-1" max="1" step="0.01"><output id="m${i}_amtv"></output></div>
+    <div class="curve"><canvas id="m${i}_curve" aria-label="M${i} response curve. Drag sideways for threshold, up and down for shape."></canvas><span class="cread" id="m${i}_cread"></span></div>
+    <div class="qc" id="m${i}_qc">${Object.keys(CURVES).map(n => `<button type="button" data-c="${n}">${n}</button>`).join('')}</div>
+    <div class="row"><label for="m${i}_att">Attack</label><input type="range" id="m${i}_att" min="1" max="500" step="1"><output id="m${i}_attv"></output></div>
+    <div class="row"><label for="m${i}_rel">Release</label><input type="range" id="m${i}_rel" min="10" max="2000" step="1"><output id="m${i}_relv"></output></div>
+  </div></div>`; }).join('');
+let openM = 0;
+function openMod(i) {
+  showTab('mod'); openM = openM === i ? 0 : i;
+  for (let m = 1; m <= NMOD; m++) { $('mb' + m).hidden = m !== openM; $('mi' + m).classList.toggle('open', m === openM); $('chev' + m).innerHTML = m === openM ? '&#9652;' : '&#9662;'; }
+  if (openM) { sizeCurve(openM); $('mi' + openM).scrollIntoView({ block: 'nearest' }); }
+}
+for (let i = 1; i <= NMOD; i++) {
+  const k = 'm' + i + '_';
+  $('mi' + i).querySelector('.mh').addEventListener('click', e => { if (!e.target.closest('.sw2')) openMod(i); });
+  $(k + 'on').addEventListener('change', e => setParam(k + 'on', e.target.checked ? 1 : 0));
+  $(k + 'srcseg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setParam(k + 'src', +b.dataset.v); });
+  $(k + 'preset').addEventListener('change', e => { const r = RANGES[+e.target.value]; if (r) { setParam(k + 'lo', r[1]); setParam(k + 'hi', r[2]); } });
+  $(k + 'lo').addEventListener('change', e => setParam(k + 'lo', clamp(+e.target.value || 20, 20, 20000)));
+  $(k + 'hi').addEventListener('change', e => setParam(k + 'hi', clamp(+e.target.value || 20, 20, 20000)));
+  ['rate', 'amt', 'att', 'rel'].forEach(f => $(k + f).addEventListener('input', e => setParam(k + f, +e.target.value)));
+  $(k + 'tgt').addEventListener('change', e => setParam(k + 'tgt', +e.target.value));
+  $(k + 'qc').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { const c = CURVES[b.dataset.c]; setParam(k + 'bend', c[0]); setParam(k + 'thr', c[1]); } });
+  const cv = $(k + 'curve'); let cs = null;
+  cv.addEventListener('pointerdown', e => { cs = { x: e.clientX, y: e.clientY, b: mp(i, 'bend'), t: mp(i, 'thr') }; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', e => {
+    if (!cs) return; const r = cv.getBoundingClientRect();
+    setParam(k + 'thr', clamp(cs.t + (e.clientX - cs.x) / r.width, 0, 0.9));
+    setParam(k + 'bend', clamp(cs.b + (e.clientY - cs.y) / r.height * 2, -1, 1));
+  });
+  cv.addEventListener('pointerup', () => (cs = null));
+  cv.addEventListener('dblclick', () => { setParam(k + 'bend', 0); setParam(k + 'thr', 0); });
+}
+$('sens').addEventListener('input', e => setParam('sens', +e.target.value));
+function sizeCurve(i) { const c = $('m' + i + '_curve'), d = Math.min(devicePixelRatio || 1, 2); c.width = Math.max(10, c.clientWidth * d); c.height = 96 * d; }
+const shapeCurve = (x, i) => { const t = mp(i, 'thr'); if (x <= t) return 0; return Math.pow((x - t) / (1 - t), Math.pow(2, mp(i, 'bend') * 2)); };
+function drawCurve(i, xin) {
+  const c = $('m' + i + '_curve'), g = c.getContext('2d'), W = c.width, H = c.height, k = W / (c.clientWidth || W), pad = 8 * k;
+  g.clearRect(0, 0, W, H);
+  g.strokeStyle = '#232637'; g.lineWidth = 1;
+  for (let q = 1; q < 4; q++) { g.beginPath(); g.moveTo(pad + (W - 2 * pad) * q / 4, pad); g.lineTo(pad + (W - 2 * pad) * q / 4, H - pad); g.stroke(); g.beginPath(); g.moveTo(pad, pad + (H - 2 * pad) * q / 4); g.lineTo(W - pad, pad + (H - 2 * pad) * q / 4); g.stroke(); }
+  const X = x => pad + x * (W - 2 * pad), Y = y => H - pad - y * (H - 2 * pad);
+  const t = mp(i, 'thr');
+  g.setLineDash([4 * k, 4 * k]); g.strokeStyle = '#80869c'; g.beginPath(); g.moveTo(X(t), pad); g.lineTo(X(t), H - pad); g.stroke(); g.setLineDash([]);
+  g.beginPath(); g.moveTo(X(0), Y(0));
+  for (let s = 0; s <= 64; s++) { const x = s / 64; g.lineTo(X(x), Y(shapeCurve(x, i))); }
+  g.lineTo(X(1), Y(0)); g.closePath(); g.fillStyle = 'rgba(255,173,92,0.12)'; g.fill();
+  g.beginPath(); for (let s = 0; s <= 64; s++) { const x = s / 64; g[s ? 'lineTo' : 'moveTo'](X(x), Y(shapeCurve(x, i))); }
+  g.strokeStyle = '#ffad5c'; g.lineWidth = 2 * k; g.stroke();
+  g.fillStyle = '#ffffff'; g.beginPath(); g.arc(X(xin), Y(shapeCurve(xin, i)), 4 * k, 0, 7); g.fill();
+}
+
+// modifier dock + drag to knobs
+$('dock').innerHTML = Array.from({ length: NMOD }, (_, k) => `<button type="button" class="chip" data-m="${k + 1}" id="chip${k + 1}">M${k + 1}<span class="lv" id="chiplv${k + 1}"></span></button>`).join('')
+  + '<p>Drag a modifier onto a knob to assign it. Tap to edit.</p>';
+let drag = null;
+$('dock').addEventListener('pointerdown', e => { const c = e.target.closest('.chip'); if (!c) return; drag = { m: +c.dataset.m, x: e.clientX, y: e.clientY, moved: false }; c.setPointerCapture(e.pointerId); });
+$('dock').addEventListener('pointermove', e => {
+  if (!drag) return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 6) {
+    drag.moved = true;
+    if (!document.querySelector('.pane:not([hidden]) .knob')) showTab('shape');
+    drag.ghost = document.createElement('div'); drag.ghost.className = 'ghost'; drag.ghost.textContent = 'M' + drag.m; document.body.appendChild(drag.ghost);
+  }
+  if (!drag.moved) return;
+  drag.ghost.style.left = e.clientX + 'px'; drag.ghost.style.top = e.clientY + 'px';
+  const el = document.elementFromPoint(e.clientX, e.clientY), k = el && el.closest('.knob');
+  if (drag.over && drag.over !== k) drag.over.classList.remove('drop');
+  drag.over = k; if (k) k.classList.add('drop');
+});
+function endDrag() {
+  if (!drag) return;
+  if (drag.moved) {
+    drag.ghost.remove();
+    if (drag.over) {
+      const k = 'm' + drag.m + '_', id = drag.over.dataset.param; drag.over.classList.remove('drop');
+      setParam(k + 'tgt', VI[id]); setParam(k + 'on', 1);
+      if (Math.abs(P[k + 'amt']) < 0.05) setParam(k + 'amt', 0.5);
+      setStatus('M' + drag.m + ' now drives ' + VIS[VI[id]].name + '.');
+    }
+  } else openMod(drag.m);
+  drag = null;
+}
+$('dock').addEventListener('pointerup', endDrag);
+$('dock').addEventListener('pointercancel', () => { if (drag && drag.ghost) drag.ghost.remove(); if (drag && drag.over) drag.over.classList.remove('drop'); drag = null; });
 
 // tabs
 function showTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === name));
   document.querySelectorAll('.pane').forEach(p => (p.hidden = p.dataset.pane !== name));
+  if (name === 'mod' && openM) sizeCurve(openM);
 }
 document.querySelector('.tabs').addEventListener('click', e => { const t = e.target.closest('.tab'); if (t) showTab(t.dataset.tab); });
 
-// segmented controls
-function seg(id, fn) { $(id).addEventListener('click', e => { const b = e.target.closest('button'); if (b) fn(+b.dataset.v); }); }
-seg('shapes', v => setParam('shape', v));
-seg('density', v => setParam('density', v));
-seg('rscale', v => setParam('rscale', v));
-seg('rformat', v => { UI.recFormat = v; saveUI(); render(); });
-seg('rres', v => { UI.recRes = v; saveUI(); render(); });
-seg('rfps', v => { UI.recFps = v; saveUI(); render(); });
-
-let dragging = null;
-document.addEventListener('pointerdown', e => { if (e.target.matches && e.target.matches('input[type=range]')) dragging = e.target.id; });
-document.addEventListener('pointerup', () => { dragging = null; });
-VIS.forEach(v => $('v_' + v.id).addEventListener('input', e => setParam(v.id, +e.target.value)));
-$('sens').addEventListener('input', e => setParam('sens', +e.target.value));
-$('smooth').addEventListener('input', e => setParam('smooth', +e.target.value));
-for (let i = 1; i <= NMOD; i++) {
-  const k = 'm' + i + '_';
-  $(k + 'on').addEventListener('change', e => setParam(k + 'on', e.target.checked ? 1 : 0));
-  $(k + 'src').addEventListener('change', e => setParam(k + 'src', +e.target.value));
-  $(k + 'preset').addEventListener('change', e => { const r = RANGES[+e.target.value]; if (r) { setParam(k + 'lo', r[1]); setParam(k + 'hi', r[2]); } });
-  $(k + 'lo').addEventListener('change', e => setParam(k + 'lo', clamp(+e.target.value || 20, 20, 20000)));
-  $(k + 'hi').addEventListener('change', e => setParam(k + 'hi', clamp(+e.target.value || 20, 20, 20000)));
-  $(k + 'rate').addEventListener('input', e => setParam(k + 'rate', +e.target.value));
-  $(k + 'tgt').addEventListener('change', e => setParam(k + 'tgt', +e.target.value));
-  $(k + 'amt').addEventListener('input', e => setParam(k + 'amt', +e.target.value));
-}
-document.querySelectorAll('.badges').forEach(b => b.addEventListener('click', e => { const m = e.target.closest('.badge'); if (m) openMod(+m.dataset.m); }));
-function openMod(i) {
-  showTab('mods');
-  document.querySelectorAll('.mod').forEach(m => m.classList.toggle('sel', m.id === 'mod' + i));
-  $('mod' + i).scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-}
-
-// drag a modifier chip onto a parameter
-let drag = null;
-$('chips').addEventListener('pointerdown', e => {
-  const c = e.target.closest('.chip'); if (!c) return;
-  drag = { m: +c.dataset.m, x: e.clientX, y: e.clientY, moved: false, ghost: null, over: null };
-  c.setPointerCapture(e.pointerId);
+// colour
+$('pals').innerHTML = PALETTES.map((p, i) => `<button type="button" class="pal" data-i="${i}" title="${p[0]}" aria-label="${p[0]} palette" style="background:radial-gradient(circle at 50% 50%,${p[1]} 0 28%,${p[2]} 55%,${p[3]} 80%)"></button>`).join('');
+$('pals').addEventListener('click', e => { const b = e.target.closest('.pal'); if (!b) return; const p = PALETTES[+b.dataset.i]; Object.assign(UI, { c1: p[1], c2: p[2], c3: p[3], c4: p[4] }); saveUI(); render(); });
+['c1', 'c2', 'c3', 'c4'].forEach(k => $(k).addEventListener('input', e => setUI(k, e.target.value)));
+$('cspeed').addEventListener('input', e => setUI('cspeed', +e.target.value));
+$('rand').addEventListener('click', () => {
+  const h = Math.random(), c = new THREE.Color(), hex = (hh, s, l) => '#' + c.setHSL(((hh % 1) + 1) % 1, s, l).getHexString();
+  const spread = 0.15 + Math.random() * 0.45;
+  Object.assign(UI, { c1: hex(h, 0.9, 0.62), c2: hex(h + spread, 0.85, 0.55), c3: hex(h - spread * 0.7, 0.95, 0.65), c4: hex(h + spread, 0.6, 0.03) });
+  saveUI(); render(); setStatus('New random palette.');
 });
-$('chips').addEventListener('pointermove', e => {
-  if (!drag) return;
-  if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 6) {
-    drag.moved = true; showTab('visual');
-    drag.ghost = document.createElement('div'); drag.ghost.className = 'ghost'; drag.ghost.textContent = 'M' + drag.m; document.body.appendChild(drag.ghost);
-  }
-  if (!drag.moved) return;
-  drag.ghost.style.left = e.clientX + 'px'; drag.ghost.style.top = e.clientY + 'px';
-  const el = document.elementFromPoint(e.clientX, e.clientY);
-  const row = el && el.closest('[data-param]');
-  if (drag.over && drag.over !== row) drag.over.classList.remove('drop');
-  drag.over = row; if (row) row.classList.add('drop');
-});
-function endDrag() {
-  if (!drag) return;
-  if (drag.moved) {
-    if (drag.over) {
-      const k = 'm' + drag.m + '_';
-      setParam(k + 'tgt', VI[drag.over.dataset.param]); setParam(k + 'on', 1);
-      if (Math.abs(P[k + 'amt']) < 0.05) setParam(k + 'amt', 0.5);
-      drag.over.classList.remove('drop');
-      setStatus('M' + drag.m + ' now drives ' + VIS[VI[drag.over.dataset.param]].name + '.');
-    }
-    drag.ghost.remove();
-  } else openMod(drag.m);
-  drag = null;
-}
-$('chips').addEventListener('pointerup', endDrag);
-$('chips').addEventListener('pointercancel', () => { if (drag && drag.ghost) drag.ghost.remove(); if (drag && drag.over) drag.over.classList.remove('drop'); drag = null; });
-
-// colours & logo
-$('themes').addEventListener('click', e => { const b = e.target.closest('.sw'); if (!b) return; const t = THEMES[+b.dataset.i]; UI.a = t[0]; UI.b = t[1]; saveUI(); render(); });
-[['ca', 'a'], ['cb', 'b'], ['cbg', 'bg']].forEach(([id, k]) => $(id).addEventListener('input', e => { UI[k] = e.target.value; saveUI(); render(); }));
-$('transp').addEventListener('change', e => { UI.transparent = e.target.checked; saveUI(); });
+$('transp').addEventListener('change', e => setUI('transparent', e.target.checked));
 $('logofile').addEventListener('change', e => {
   const f = e.target.files[0]; if (!f) return;
   const img = new Image();
-  img.onload = () => { // downscale so it fits in the plugin's saved state
-    const s = Math.min(1, 512 / Math.max(img.width, img.height)), c = document.createElement('canvas');
-    c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
-    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-    UI.logo = c.toDataURL('image/png'); saveUI(); render(); URL.revokeObjectURL(img.src);
-  };
+  img.onload = () => { const s = Math.min(1, 512 / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); setUI('logo', c.toDataURL('image/png')); URL.revokeObjectURL(img.src); };
   img.src = URL.createObjectURL(f);
 });
-$('logoclear').addEventListener('click', () => { UI.logo = null; saveUI(); render(); });
-$('logopos').addEventListener('change', e => { UI.logoPos = +e.target.value; saveUI(); render(); });
-$('logosize').addEventListener('input', e => { UI.logoSize = +e.target.value; saveUI(); render(); });
-$('logoop').addEventListener('input', e => { UI.logoOpacity = +e.target.value; saveUI(); render(); });
+$('logoclear').addEventListener('click', () => setUI('logo', null));
+$('logopos').addEventListener('change', e => setUI('logoPos', +e.target.value));
+$('logosize').addEventListener('input', e => setUI('logoSize', +e.target.value));
+$('logoop').addEventListener('input', e => setUI('logoOpacity', +e.target.value));
 
 // presets
 let userPresets = [];
-function snapshot(name) { const p = { name, P: { ...P }, a: UI.a, b: UI.b, bg: UI.bg }; return p; }
+$('factory').innerHTML = FACTORY.map((f, i) => `<button type="button" class="pb" data-i="${i}"><i style="background:linear-gradient(90deg,${f.colors[3]},${f.colors[1]} 35%,${f.colors[0]} 60%,${f.colors[2]})"></i>${f.name}</button>`).join('');
 function applyFactory(i) {
   const f = FACTORY[i];
   P.shape = f.shape; VIS.forEach(v => (P[v.id] = v.def)); Object.assign(P, f.vis);
-  for (let m = 1; m <= NMOD; m++) P['m' + m + '_on'] = 0;
+  for (let m = 1; m <= NMOD; m++) for (const k in MODDEF) P['m' + m + '_' + k] = MODDEF[k];
   f.mods.forEach((md, j) => {
     const k = 'm' + (j + 1) + '_';
-    P[k + 'on'] = 1; P[k + 'tgt'] = VI[md[1]]; P[k + 'amt'] = md[2];
-    if (md[0] === 'lfo') { P[k + 'src'] = 1; P[k + 'rate'] = md[3]; } else { P[k + 'src'] = 0; P[k + 'lo'] = RANGES[md[0]][1]; P[k + 'hi'] = RANGES[md[0]][2]; }
+    P[k + 'on'] = 1; P[k + 'tgt'] = VI[md.t]; P[k + 'amt'] = md.a;
+    if (md.lfo) { P[k + 'src'] = 1; P[k + 'rate'] = md.lfo; P[k + 'bend'] = 0; P[k + 'thr'] = 0; }
+    else { P[k + 'lo'] = RANGES[md.b][1]; P[k + 'hi'] = RANGES[md.b][2]; }
+    if (md.c) { P[k + 'bend'] = CURVES[md.c][0]; P[k + 'thr'] = CURVES[md.c][1]; }
+    if (md.att) P[k + 'att'] = md.att; if (md.rel) P[k + 'rel'] = md.rel;
   });
-  UI.a = f.a; UI.b = f.b; UI.bg = f.bg; UI.preset = f.name;
+  Object.assign(UI, { c1: f.colors[0], c2: f.colors[1], c3: f.colors[2], c4: f.colors[3], cmode: f.cmode, preset: f.name });
   pushAll();
 }
-function applyUser(p) {
-  Object.keys(P).forEach(k => { if (k in p.P && !['density', 'rscale'].includes(k)) P[k] = p.P[k]; });
-  UI.a = p.a; UI.b = p.b; UI.bg = p.bg; UI.preset = p.name; pushAll();
+function applyUser(u) {
+  Object.keys(P).forEach(k => { if (k in u.P && k !== 'density' && k !== 'rscale') P[k] = u.P[k]; });
+  Object.assign(UI, u.ui, { preset: u.name }); pushAll();
 }
 function pushAll() { Object.keys(P).forEach(sendParam); saveUI(); render(); setStatus('Preset: ' + UI.preset); }
 function allPresets() { return FACTORY.map((f, i) => ({ name: f.name, go: () => applyFactory(i) })).concat(userPresets.map(u => ({ name: u.name, go: () => applyUser(u) }))); }
-function stepPreset(d) { const all = allPresets(); let i = all.findIndex(p => p.name === UI.preset); i = (i + d + all.length) % all.length; all[i].go(); cycleAt = time + (+UI.cycle || 0); }
+let cycleAt = 0, time = 0;
+function stepPreset(d) { const all = allPresets(); let i = all.findIndex(p => p.name === UI.preset); all[(i + d + all.length) % all.length].go(); cycleAt = time + (UI.cycle || 0); }
 $('prev').addEventListener('click', () => stepPreset(-1));
 $('next').addEventListener('click', () => stepPreset(1));
-$('factory').addEventListener('click', e => { const b = e.target.closest('.pbtn'); if (b) { applyFactory(+b.dataset.i); cycleAt = time + (+UI.cycle || 0); } });
+$('factory').addEventListener('click', e => { const b = e.target.closest('.pb'); if (b) { applyFactory(+b.dataset.i); cycleAt = time + (UI.cycle || 0); } });
 function saveUserPresets() {
   if (juce()) juce().emitEvent('presets', JSON.stringify(userPresets));
-  else try { localStorage.setItem('sphere-presets', JSON.stringify(userPresets)); } catch (e) {}
+  else try { localStorage.setItem('sphere-presets-v3', JSON.stringify(userPresets)); } catch (e) {}
 }
 $('usave').addEventListener('click', () => {
   const name = ($('uname').value || '').trim() || 'My preset ' + (userPresets.length + 1);
-  userPresets = userPresets.filter(p => p.name !== name).concat(snapshot(name));
+  const ui = { c1: UI.c1, c2: UI.c2, c3: UI.c3, c4: UI.c4, cmode: UI.cmode, cspeed: UI.cspeed };
+  userPresets = userPresets.filter(p => p.name !== name).concat({ name, P: { ...P }, ui });
   UI.preset = name; saveUserPresets(); saveUI(); $('uname').value = ''; render(); setStatus('Saved preset ' + name + '.');
 });
 $('ulist').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  const p = userPresets[+b.dataset.i]; if (!p) return;
-  if (b.dataset.act === 'del') { userPresets.splice(+b.dataset.i, 1); saveUserPresets(); render(); } else applyUser(p);
+  const b = e.target.closest('button'); if (!b) return; const u = userPresets[+b.dataset.i]; if (!u) return;
+  if (b.dataset.act === 'del') { userPresets.splice(+b.dataset.i, 1); saveUserPresets(); render(); } else applyUser(u);
 });
 $('cycle').addEventListener('change', e => { UI.cycle = +e.target.value; cycleAt = time + UI.cycle; saveUI(); });
-$('hide').addEventListener('click', () => { const h = document.body.classList.toggle('panel-hidden'); $('hide').textContent = h ? 'Show panel' : 'Hide panel'; $('hide').setAttribute('aria-pressed', h); });
+$('hide').addEventListener('click', () => { const h = document.body.classList.toggle('panel-hidden'); $('hide').setAttribute('aria-pressed', h); $('hide').setAttribute('aria-label', h ? 'Show controls' : 'Hide controls'); });
 
+const base = {}, cur = {}; VIS.forEach(v => { base[v.id] = P[v.id]; cur[v.id] = P[v.id]; });
+function rangeName(lo, hi) { const r = RANGES.find(r => r[1] === Math.round(lo) && r[2] === Math.round(hi)); return r ? r[0] : Math.round(lo) + '\u2013' + Math.round(hi) + ' Hz'; }
 function render() {
   const pr = (id, v) => document.querySelectorAll('#' + id + ' button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === Math.round(v)));
-  pr('shapes', P.shape); pr('density', P.density); pr('rscale', P.rscale); pr('rformat', UI.recFormat); pr('rres', UI.recRes); pr('rfps', UI.recFps);
-  VIS.forEach(v => { if (dragging !== 'v_' + v.id) $('v_' + v.id).value = P[v.id]; $('o_' + v.id).textContent = fmt(P[v.id]); $('bd_' + v.id).innerHTML = ''; });
-  if (dragging !== 'sens') $('sens').value = P.sens; $('sensv').textContent = fmt(P.sens) + 'x';
-  if (dragging !== 'smooth') $('smooth').value = P.smooth; $('smoothv').textContent = Math.round(P.smooth * 100) + '%';
+  pr('shapes', P.shape); pr('density', P.density); pr('rscale', P.rscale); pr('rformat', UI.recFormat); pr('rres', UI.recRes); pr('rfps', UI.recFps); pr('cmode', UI.cmode);
+  const badges = {}; VIS.forEach(v => (badges[v.id] = ''));
   for (let i = 1; i <= NMOD; i++) {
-    const k = 'm' + i + '_', on = +P[k + 'on'] > 0.5, lfo = Math.round(P[k + 'src']) === 1, tgt = VIS[Math.round(P[k + 'tgt'])] || VIS[0];
-    $(k + 'on').checked = on; $(k + 'src').value = lfo ? '1' : '0';
-    if (document.activeElement !== $(k + 'lo')) $(k + 'lo').value = Math.round(P[k + 'lo']);
-    if (document.activeElement !== $(k + 'hi')) $(k + 'hi').value = Math.round(P[k + 'hi']);
-    const ri = RANGES.findIndex(r => r[1] === Math.round(P[k + 'lo']) && r[2] === Math.round(P[k + 'hi']));
-    $(k + 'preset').value = String(ri);
-    if (dragging !== k + 'rate') $(k + 'rate').value = P[k + 'rate']; $(k + 'ratev').textContent = fmt(P[k + 'rate']) + ' Hz';
-    $(k + 'tgt').value = String(Math.round(P[k + 'tgt']));
-    if (dragging !== k + 'amt') $(k + 'amt').value = P[k + 'amt']; $(k + 'amtv').textContent = (P[k + 'amt'] > 0 ? '+' : '') + fmt(P[k + 'amt']);
+    const k = 'm' + i + '_', on = mp(i, 'on') > 0.5, lfo = Math.round(mp(i, 'src')) === 1, tgt = VIS[Math.round(mp(i, 'tgt'))] || VIS[0];
+    $(k + 'on').checked = on; $('mi' + i).classList.toggle('off', !on); $('chip' + i).classList.toggle('off', !on);
+    $('msum' + i).textContent = on ? (lfo ? 'LFO ' + fmt(mp(i, 'rate')) + ' Hz' : rangeName(mp(i, 'lo'), mp(i, 'hi'))) + ' \u2192 ' + tgt.name : 'Unused';
+    document.querySelectorAll('#' + k + 'srcseg button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === (lfo ? 1 : 0)));
     document.querySelectorAll('.aud' + i).forEach(el => (el.hidden = lfo));
     document.querySelectorAll('.lfo' + i).forEach(el => (el.hidden = !lfo));
-    if (on) $('mod' + i).removeAttribute('data-off'); else $('mod' + i).setAttribute('data-off', '');
-    $('chip' + i).classList.toggle('off', !on);
-    $('chipt' + i).textContent = on ? (lfo ? 'LFO' : rangeName(P[k + 'lo'], P[k + 'hi'])) + ' \u2192 ' + tgt.name : 'unused';
-    if (on) $('bd_' + tgt.id).insertAdjacentHTML('beforeend', `<span class="badge" data-m="${i}">M${i} ${P[k + 'amt'] > 0 ? '+' : ''}${fmt(P[k + 'amt'], 1)}</span>`);
+    $(k + 'preset').value = String(RANGES.findIndex(r => r[1] === Math.round(mp(i, 'lo')) && r[2] === Math.round(mp(i, 'hi'))));
+    if (document.activeElement !== $(k + 'lo')) $(k + 'lo').value = Math.round(mp(i, 'lo'));
+    if (document.activeElement !== $(k + 'hi')) $(k + 'hi').value = Math.round(mp(i, 'hi'));
+    $(k + 'tgt').value = String(Math.round(mp(i, 'tgt')));
+    [['rate', v => fmt(v) + ' Hz'], ['amt', v => (v > 0 ? '+' : '') + fmt(v)], ['att', v => Math.round(v) + ' ms'], ['rel', v => Math.round(v) + ' ms']].forEach(([f, fm]) => {
+      if (document.activeElement !== $(k + f)) $(k + f).value = mp(i, f); $(k + f + 'v').textContent = fm(mp(i, f));
+    });
+    $(k + 'cread').textContent = 'shape ' + (mp(i, 'bend') > 0 ? '+' : '') + fmt(mp(i, 'bend')) + '  thr ' + Math.round(mp(i, 'thr') * 100) + '%';
+    if (on) badges[tgt.id] += `<span data-m="${i}" title="M${i} ${fmt(mp(i, 'amt'))}">M${i}</span>`;
   }
-  $('ca').value = UI.a; $('cb').value = UI.b; $('cbg').value = UI.bg; $('transp').checked = !!UI.transparent;
+  VIS.forEach(v => { const K = knobEls[v.id]; K.kv.textContent = fmt(P[v.id]); K.kb.innerHTML = badges[v.id]; K.el.setAttribute('aria-valuenow', fmt(P[v.id])); drawKnob(v.id, P[v.id], cur[v.id]); });
+  if (document.activeElement !== $('sens')) $('sens').value = P.sens; $('sensv').textContent = fmt(P.sens) + 'x';
+  ['c1', 'c2', 'c3', 'c4'].forEach(k => ($(k).value = UI[k]));
+  $('gbar').style.background = `linear-gradient(90deg, ${UI.c4}, ${UI.c1} 30%, ${UI.c2} 65%, ${UI.c3})`;
+  document.querySelectorAll('.pal').forEach(b => { const p = PALETTES[+b.dataset.i]; b.setAttribute('aria-pressed', p[1] === UI.c1 && p[2] === UI.c2 && p[3] === UI.c3); });
+  $('cmodenote').textContent = CMODES[UI.cmode][1]; $('cspeedrow').hidden = UI.cmode !== 1;
+  $('cspeed').value = UI.cspeed; $('cspeedv').textContent = fmt(UI.cspeed) + '/s';
+  $('transp').checked = !!UI.transparent;
   $('logopos').value = String(UI.logoPos); $('logosize').value = UI.logoSize; $('logosizev').textContent = Math.round(UI.logoSize * 100) + '%';
   $('logoop').value = UI.logoOpacity; $('logoopv').textContent = Math.round(UI.logoOpacity * 100) + '%';
-  $('cycle').value = String(UI.cycle || 0);
-  $('pname').textContent = UI.preset || 'Custom';
-  document.querySelectorAll('.pbtn').forEach(b => b.setAttribute('aria-pressed', FACTORY[+b.dataset.i].name === UI.preset));
-  $('ulist').innerHTML = userPresets.map((p, i) => `<div><button class="btn" type="button" data-i="${i}">${p.name.replace(/[<&>"]/g, '')}</button><button class="btn" type="button" data-i="${i}" data-act="del" aria-label="Delete ${p.name.replace(/[<&>"]/g, '')}">Delete</button></div>`).join('') || '<p class="note">No saved presets yet.</p>';
-  document.documentElement.style.setProperty('--accent', UI.a);
+  $('cycle').value = String(UI.cycle || 0); $('pname').textContent = UI.preset || 'Custom';
+  document.querySelectorAll('.pb').forEach(b => b.setAttribute('aria-pressed', FACTORY[+b.dataset.i].name === UI.preset));
+  $('ulist').innerHTML = userPresets.map((p, i) => `<div><button class="btn small" type="button" data-i="${i}">${esc(p.name)}</button><button class="btn small" type="button" data-i="${i}" data-act="del" aria-label="Delete ${esc(p.name)}">Delete</button></div>`).join('') || '<p class="note">Nothing saved yet. Name your current look above and press Save.</p>';
+  document.documentElement.style.setProperty('--accent', UI.c1);
   layoutLogo();
   if (sceneReady) rebuildIfNeeded();
 }
-function rangeName(lo, hi) { const r = RANGES.find(r => r[1] === Math.round(lo) && r[2] === Math.round(hi)); return r ? r[0] : Math.round(lo) + '-' + Math.round(hi); }
 
 // ===== three.js scene =====
 let sceneReady = false;
 const canvas = $('gl');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, premultipliedAlpha: false });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, premultipliedAlpha: false });
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-camera.position.set(0, 0, 5.2);
+camera.position.set(0, 0, 5.6);
 
 const NOISE = `
 vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
@@ -517,92 +641,206 @@ float snoise(vec3 v){
   p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
   vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); m=m*m;
   return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
-}`;
-const VERT = NOISE + `
-uniform float uTime, uDistort, uFreq, uTwist, uMap;
-varying vec3 vN; varying vec3 vView; varying float vD;
+}
+uniform float uTime, uDisp, uFreq, uTwist, uMap, uSpikes;
 vec3 mapShape(vec3 p){
   if (uMap > 1.5) return p / (abs(p.x) + abs(p.y) + abs(p.z)) * 1.6;
   if (uMap > 0.5) return p / max(max(abs(p.x), abs(p.y)), abs(p.z));
   return p;
 }
+float body(vec3 p, float seed){ return snoise(p*uFreq*0.8 + vec3(uTime*0.35 + seed, uTime*0.2, seed)) + 0.5*snoise(p*uFreq*1.9 - vec3(seed, uTime*0.5, uTime*0.3)); }
+vec3 twistP(vec3 p){ float a = uTwist*p.y; float c = cos(a), s = sin(a); p.xz = mat2(c, -s, s, c)*p.xz; return p; }
+`;
+const HUE = 'vec3 hueRot(vec3 c, float a){ const vec3 k = vec3(0.57735); float ca = cos(a); return c*ca + cross(k,c)*sin(a) + k*dot(k,c)*(1.0-ca); }\n';
+// soft nested shells: the fluffy core
+const SHELL_V = NOISE + `
+uniform float uScale, uSeed;
+varying vec3 vN; varying vec3 vView; varying float vD;
 void main(){
-  vec3 b = mapShape(position);
-  vec3 nrm = normal;
-  float n = snoise(position*uFreq*0.8 + vec3(uTime*0.35, uTime*0.2, 0.0));
-  n += 0.5*snoise(position*uFreq*1.9 - vec3(0.0, uTime*0.5, uTime*0.3));
-  float d = n*uDistort;
-  vec3 p = b + nrm*d; vD = d;
-  float a = uTwist*p.y; float c = cos(a), s = sin(a);
-  mat2 r = mat2(c, -s, s, c);
-  p.xz = r*p.xz; nrm.xz = r*nrm.xz;
+  float d = body(position, uSeed)*uDisp*0.6;
+  vec3 p = twistP(mapShape(position)*uScale + normal*d*uScale);
+  vD = d;
   vec4 mv = modelViewMatrix*vec4(p, 1.0);
-  vView = normalize(-mv.xyz);
-  vN = normalize(normalMatrix*nrm);
+  vView = normalize(-mv.xyz); vN = normalize(normalMatrix*twistP(normal));
   gl_Position = projectionMatrix*mv;
 }`;
-const FRAG = `
-uniform vec3 uA, uB; uniform float uGlow, uShift, uAlpha, uFlat;
+const SHELL_F = HUE + `
+uniform vec3 uC1, uC2; uniform float uOpacity, uLayer, uSpectrum, uFlat;
 varying vec3 vN; varying vec3 vView; varying float vD;
-vec3 hueRot(vec3 c, float a){ const vec3 k = vec3(0.57735); float ca = cos(a); return c*ca + cross(k,c)*sin(a) + k*dot(k,c)*(1.0-ca); }
 void main(){
-  float f = pow(1.0 - abs(dot(vN, vView)), 2.2);
-  vec3 col = mix(uA, uB, clamp(vD*1.6 + 0.5, 0.0, 1.0));
-  col = max(hueRot(col, uShift*6.2831853), 0.0);
-  vec3 c = col*(0.18 + 0.3*uFlat + 1.1*f)*(0.55 + uGlow) + col*smoothstep(0.05, 0.45, vD)*0.9;
-  gl_FragColor = vec4(c, uAlpha);
+  float rim = pow(1.0 - abs(dot(vN, vView)), 1.6);
+  vec3 col = mix(uC1, uC2, clamp(rim*1.1 + uLayer*0.45 + vD*0.8, 0.0, 1.0));
+  col = max(hueRot(col, uSpectrum*uLayer*2.4), 0.0);
+  gl_FragColor = vec4(col, (0.12 + rim*0.9 + uFlat*0.35)*uOpacity);
 }`;
-const U = {
-  uTime: { value: 0 }, uDistort: { value: 0.1 }, uFreq: { value: 1.5 }, uTwist: { value: 0 }, uMap: { value: 0 },
-  uA: { value: new THREE.Color(UI.a) }, uB: { value: new THREE.Color(UI.b) }, uGlow: { value: 0.4 }, uShift: { value: 0 }, uFlat: { value: 0 },
-};
-const solidMat = new THREE.ShaderMaterial({ uniforms: { ...U, uAlpha: { value: 1 } }, vertexShader: VERT, fragmentShader: FRAG, side: THREE.DoubleSide });
-const wireMat = new THREE.ShaderMaterial({ uniforms: { ...U, uAlpha: { value: 0.3 } }, vertexShader: VERT, fragmentShader: FRAG,
-  wireframe: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
-const ball = new THREE.Group(); scene.add(ball);
-const solid = new THREE.Mesh(new THREE.BufferGeometry(), solidMat);
-const wire = new THREE.Mesh(new THREE.BufferGeometry(), wireMat);
-wire.scale.setScalar(1.015); ball.add(solid, wire);
+// radial strands: the spiky fur
+const FUR_V = NOISE + `
+attribute float aT; attribute float aRand;
+varying float vT;
+void main(){
+  float d = body(position, 0.0)*uDisp*0.6;
+  float sp = snoise(position*uFreq*2.2 + vec3(aRand*5.0, uTime*0.55, 0.0))*0.5 + 0.5;
+  float len = uSpikes*(0.08 + 1.5*pow(sp, 3.0))*(0.45 + 0.9*aRand);
+  vec3 p = twistP(mapShape(position) + normal*(d + aT*len));
+  vT = aT;
+  gl_Position = projectionMatrix*modelViewMatrix*vec4(p, 1.0);
+}`;
+const FUR_F = HUE + `
+uniform vec3 uC2, uC3; uniform float uOpacity, uSpectrum;
+varying float vT;
+void main(){
+  vec3 col = mix(uC2, uC3, smoothstep(0.1, 1.0, vT));
+  col = max(hueRot(col, uSpectrum*(1.2 + vT*1.4)), 0.0);
+  gl_FragColor = vec4(col, (1.0 - vT*0.8)*uOpacity);
+}`;
+// low-poly wireframe shell with ridged spikes: the shards
+const SHARD_V = NOISE + `
+varying float vH;
+void main(){
+  float d = body(position, 3.0)*uDisp*0.6;
+  float r = 1.0 - abs(snoise(position*1.4 + vec3(0.0, uTime*0.15, 7.0)));
+  float h = pow(r, 3.0)*uSpikes*1.3;
+  vec3 p = twistP(mapShape(position)*1.04 + normal*(d + h));
+  vH = clamp(h/(uSpikes*1.3 + 0.001), 0.0, 1.0);
+  gl_Position = projectionMatrix*modelViewMatrix*vec4(p, 1.0);
+}`;
+const SHARD_F = HUE + `
+uniform vec3 uC2, uC3; uniform float uOpacity, uSpectrum;
+varying float vH;
+void main(){
+  vec3 col = max(hueRot(mix(uC2, uC3, vH), uSpectrum*3.0), 0.0);
+  gl_FragColor = vec4(col, uOpacity*(0.35 + 0.65*vH));
+}`;
 
-function buildGeo(shape, d, forWire) {
-  if (shape <= 2) return new THREE.IcosahedronGeometry(1.25, forWire ? [6, 10, 16, 22][d] : [20, 40, 72, 110][d]);
-  if (shape === 3) return new THREE.TorusGeometry(1.15, 0.45, forWire ? [10, 14, 20, 28][d] : [40, 80, 140, 200][d], forWire ? [28, 40, 56, 80][d] : [100, 200, 340, 480][d]);
-  if (shape === 4) return new THREE.TorusKnotGeometry(0.95, 0.3, forWire ? [60, 90, 120, 180][d] : [200, 400, 700, 1000][d], forWire ? [6, 8, 10, 14][d] : [24, 40, 64, 90][d]);
-  const n = forWire ? [20, 32, 48, 64][d] : [80, 140, 220, 320][d];
+const U = {
+  uTime: { value: 0 }, uDisp: { value: 0.3 }, uFreq: { value: 1.6 }, uTwist: { value: 0 }, uMap: { value: 0 }, uSpikes: { value: 0.3 },
+  uC1: { value: new THREE.Color(UI.c1) }, uC2: { value: new THREE.Color(UI.c2) }, uC3: { value: new THREE.Color(UI.c3) },
+  uSpectrum: { value: 0 }, uFlat: { value: 0 },
+};
+const addMat = (v, f, extra, opts = {}) => new THREE.ShaderMaterial(Object.assign({ uniforms: Object.assign({}, U, extra), vertexShader: v, fragmentShader: f,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }, opts));
+const ball = new THREE.Group(); scene.add(ball);
+const SHELLS = 5, shells = [];
+for (let s = 0; s < SHELLS; s++) {
+  const l = s / (SHELLS - 1);
+  const m = new THREE.Mesh(new THREE.BufferGeometry(), addMat(SHELL_V, SHELL_F, { uScale: { value: 0.55 + 0.45 * l }, uSeed: { value: s * 1.7 }, uLayer: { value: l }, uOpacity: { value: 0.3 } }));
+  shells.push(m); ball.add(m);
+}
+const fur = new THREE.LineSegments(new THREE.BufferGeometry(), addMat(FUR_V, FUR_F, { uOpacity: { value: 0.3 } }));
+const shards = new THREE.Mesh(new THREE.BufferGeometry(), addMat(SHARD_V, SHARD_F, { uOpacity: { value: 0.3 } }, { wireframe: true }));
+ball.add(fur, shards);
+
+function buildGeo(shape, d, lod) { // lod 0 = full, 1 = shards
+  if (shape <= 2) return new THREE.IcosahedronGeometry(1.25, lod ? [3, 4, 5, 6][d] : [12, 22, 36, 56][d]);
+  if (shape === 3) return new THREE.TorusGeometry(1.15, 0.45, lod ? [8, 10, 12, 16][d] : [32, 56, 90, 130][d], lod ? [20, 28, 36, 48][d] : [80, 140, 220, 320][d]);
+  if (shape === 4) return new THREE.TorusKnotGeometry(0.95, 0.3, lod ? [40, 60, 80, 110][d] : [160, 280, 440, 640][d], lod ? [5, 6, 7, 8][d] : [20, 30, 44, 64][d]);
+  const n = lod ? [12, 16, 22, 28][d] : [60, 100, 160, 230][d];
   const g = new THREE.PlaneGeometry(4, 4, n, n); g.rotateX(-Math.PI / 2); return g;
 }
-let builtKey = '';
+function buildFur(src, count) {
+  const sp = src.attributes.position, sn = src.attributes.normal, n = sp.count;
+  const pos = new Float32Array(count * 6), nor = new Float32Array(count * 6), t = new Float32Array(count * 2), r = new Float32Array(count * 2);
+  for (let i = 0; i < count; i++) {
+    const j = Math.floor(Math.random() * n), rr = Math.random();
+    for (let e = 0; e < 2; e++) {
+      const o = (i * 2 + e) * 3;
+      pos[o] = sp.getX(j); pos[o + 1] = sp.getY(j); pos[o + 2] = sp.getZ(j);
+      nor[o] = sn.getX(j); nor[o + 1] = sn.getY(j); nor[o + 2] = sn.getZ(j);
+      t[i * 2 + e] = e; r[i * 2 + e] = rr;
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setAttribute('aT', new THREE.BufferAttribute(t, 1)); g.setAttribute('aRand', new THREE.BufferAttribute(r, 1));
+  return g;
+}
+let builtKey = '', fullGeo = null;
 function rebuildIfNeeded() {
   const s = Math.round(P.shape), d = Math.round(P.density), key = s + ':' + d;
-  if (key === builtKey) return;
-  builtKey = key;
-  solid.geometry.dispose(); wire.geometry.dispose();
-  solid.geometry = buildGeo(s, d, false); wire.geometry = buildGeo(s, d, true);
+  if (key === builtKey) return; builtKey = key;
+  if (fullGeo) fullGeo.dispose();
+  fullGeo = buildGeo(s, d, 0);
+  shells.forEach(m => (m.geometry = fullGeo));
+  fur.geometry.dispose(); fur.geometry = buildFur(fullGeo, [5000, 10000, 18000, 30000][d]);
+  shards.geometry.dispose(); shards.geometry = buildGeo(s, d, 1);
   U.uMap.value = s === 1 ? 1 : s === 2 ? 2 : 0; U.uFlat.value = s === 5 ? 1 : 0;
-  solidMat.uniforms.uAlpha.value = 1;
 }
 
 function radialTex() {
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const g = c.getContext('2d'); const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c);
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.3, 'rgba(255,255,255,0.4)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
 }
-const tex = radialTex();
-const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.5 }));
-halo.scale.setScalar(6); halo.position.z = -1.5; scene.add(halo);
-const N = 2000, pos = new Float32Array(N * 3);
-for (let i = 0; i < N; i++) {
-  const r = 1.8 + Math.pow(Math.random(), 1.6) * 1.8, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
-  pos[i * 3] = r * Math.sin(ph) * Math.cos(th); pos[i * 3 + 1] = r * Math.cos(ph) * 0.55; pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+const NP = 2500, ppos = new Float32Array(NP * 3);
+for (let i = 0; i < NP; i++) {
+  const r = 1.7 + Math.pow(Math.random(), 1.5) * 2.2, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+  ppos[i * 3] = r * Math.sin(ph) * Math.cos(th); ppos[i * 3 + 1] = r * Math.cos(ph) * 0.7; ppos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
 }
-const pgeo = new THREE.BufferGeometry(); pgeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-const pmat = new THREE.PointsMaterial({ map: tex, size: 0.06, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.8 });
+const pgeo = new THREE.BufferGeometry(); pgeo.setAttribute('position', new THREE.BufferAttribute(ppos, 3));
+const pmat = new THREE.PointsMaterial({ map: radialTex(), size: 0.05, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
 const points = new THREE.Points(pgeo, pmat); scene.add(points);
+
+// ----- bloom + tone mapping (custom passes; three r128 core has no post-processing) -----
+const fsScene = new THREE.Scene(), fsCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const fsQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); fsQuad.frustumCulled = false; fsScene.add(fsQuad);
+const FS_V = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+const downMat = new THREE.ShaderMaterial({ uniforms: { tIn: { value: null }, uTexel: { value: new THREE.Vector2() } }, vertexShader: FS_V, depthTest: false, depthWrite: false,
+  fragmentShader: 'uniform sampler2D tIn; uniform vec2 uTexel; varying vec2 vUv; void main(){ vec4 s = texture2D(tIn, vUv + uTexel*vec2(-1.0,-1.0)) + texture2D(tIn, vUv + uTexel*vec2(1.0,-1.0)) + texture2D(tIn, vUv + uTexel*vec2(-1.0,1.0)) + texture2D(tIn, vUv + uTexel*vec2(1.0,1.0)); gl_FragColor = s*0.25; }' });
+const blurMat = new THREE.ShaderMaterial({ uniforms: { tIn: { value: null }, uDir: { value: new THREE.Vector2() } }, vertexShader: FS_V, depthTest: false, depthWrite: false,
+  fragmentShader: 'uniform sampler2D tIn; uniform vec2 uDir; varying vec2 vUv; void main(){ vec4 s = texture2D(tIn, vUv)*0.227; s += (texture2D(tIn, vUv + uDir*1.385) + texture2D(tIn, vUv - uDir*1.385))*0.316; s += (texture2D(tIn, vUv + uDir*3.231) + texture2D(tIn, vUv - uDir*3.231))*0.070; gl_FragColor = s; }' });
+const LEVELS = 5;
+const finalMat = new THREE.ShaderMaterial({ vertexShader: FS_V, depthTest: false, depthWrite: false,
+  uniforms: { tScene: { value: null }, tB0: { value: null }, tB1: { value: null }, tB2: { value: null }, tB3: { value: null }, tB4: { value: null },
+    uGlow: { value: 1 }, uExposure: { value: 1 }, uSat: { value: 1 }, uHue: { value: 0 }, uBg: { value: new THREE.Color() }, uTransparent: { value: 0 } },
+  fragmentShader: HUE + `uniform sampler2D tScene, tB0, tB1, tB2, tB3, tB4; uniform float uGlow, uExposure, uSat, uHue, uTransparent; uniform vec3 uBg; varying vec2 vUv;
+  void main(){
+    vec3 b = texture2D(tB0, vUv).rgb + texture2D(tB1, vUv).rgb*0.9 + texture2D(tB2, vUv).rgb*0.8 + texture2D(tB3, vUv).rgb*0.7 + texture2D(tB4, vUv).rgb*0.6;
+    vec3 c = texture2D(tScene, vUv).rgb + b*uGlow*0.4;
+    c = max(hueRot(c, uHue*6.2831853), 0.0);
+    float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); c = max(mix(vec3(l), c, uSat), 0.0);
+    c *= uExposure;
+    c = clamp((c*(2.51*c + 0.03))/(c*(2.43*c + 0.59) + 0.14), 0.0, 1.0);
+    vec2 q = vUv - 0.5; float vig = 1.0 - dot(q, q)*0.6;
+    if (uTransparent > 0.5) { float a = clamp(max(c.r, max(c.g, c.b))*1.15, 0.0, 1.0); gl_FragColor = vec4(c/max(a, 0.001), a); }
+    else gl_FragColor = vec4((1.0 - (1.0 - uBg)*(1.0 - c))*vig, 1.0);
+  }` });
+// High-precision buffers give smoother glow, but only if this browser can render into them; otherwise fall back to 8-bit.
+const ext = n => { try { return renderer.extensions.has(n); } catch (e) { return false; } };
+const isGL2 = renderer.capabilities.isWebGL2;
+const halfOK = isGL2 ? (ext('EXT_color_buffer_float') || ext('EXT_color_buffer_half_float'))
+                     : (ext('OES_texture_half_float') && ext('OES_texture_half_float_linear') && ext('EXT_color_buffer_half_float'));
+const rtType = halfOK ? THREE.HalfFloatType : THREE.UnsignedByteType;
+const mkRT = (w, h) => new THREE.WebGLRenderTarget(w, h, { type: rtType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false });
+let sceneRT = null, rtA = [], rtB = [];
+function sizeTargets() {
+  const v = renderer.getDrawingBufferSize(new THREE.Vector2()), w = Math.max(2, v.x), h = Math.max(2, v.y);
+  if (sceneRT && sceneRT.width === w && sceneRT.height === h) return;
+  [sceneRT, ...rtA, ...rtB].forEach(t => t && t.dispose());
+  sceneRT = mkRT(w, h); // no multisampled target: WebKit (Safari, the Mac plugin window) renders it black
+  rtA = []; rtB = [];
+  for (let i = 0; i < LEVELS; i++) { const lw = Math.max(1, w >> (i + 1)), lh = Math.max(1, h >> (i + 1)); rtA.push(mkRT(lw, lh)); rtB.push(mkRT(lw, lh)); }
+}
+function pass(mat, target) { fsQuad.material = mat; renderer.setRenderTarget(target); renderer.render(fsScene, fsCam); }
+function renderFrame() {
+  sizeTargets();
+  renderer.setClearColor(0x000000, 0);
+  renderer.setRenderTarget(sceneRT); renderer.clear(); renderer.render(scene, camera);
+  let src = sceneRT;
+  for (let i = 0; i < LEVELS; i++) {
+    downMat.uniforms.tIn.value = src.texture; downMat.uniforms.uTexel.value.set(0.5 / src.width, 0.5 / src.height); pass(downMat, rtA[i]);
+    blurMat.uniforms.tIn.value = rtA[i].texture; blurMat.uniforms.uDir.value.set(1 / rtA[i].width, 0); pass(blurMat, rtB[i]);
+    blurMat.uniforms.tIn.value = rtB[i].texture; blurMat.uniforms.uDir.value.set(0, 1 / rtA[i].height); pass(blurMat, rtA[i]);
+    src = rtA[i];
+  }
+  const fu = finalMat.uniforms; fu.tScene.value = sceneRT.texture;
+  for (let i = 0; i < LEVELS; i++) fu['tB' + i].value = rtA[i].texture;
+  pass(finalMat, null);
+}
 sceneReady = true; rebuildIfNeeded();
 
 // sizing (stage size, or the recording size while recording)
-let recDims = null;
+let recDims = null, lastScale = -1;
 function resize() {
   const r = canvas.parentElement.getBoundingClientRect();
   if (r.width < 2 || r.height < 2) return;
@@ -610,35 +848,32 @@ function resize() {
   if (recDims) { renderer.setPixelRatio(1); renderer.setSize(recDims[0], recDims[1], false); w = recDims[0]; h = recDims[1]; }
   else { renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2) * RSCALE[Math.round(P.rscale)]); renderer.setSize(w, h, false); }
   camera.aspect = w / h;
-  camera.position.z = 5.2 * Math.max(1, 0.95 / Math.max(camera.aspect, 0.4)) * (!recDims && h < 560 ? 1.2 : 1);
+  camera.position.z = 5.6 * Math.max(1, 0.95 / Math.max(camera.aspect, 0.4)) * (!recDims && h < 560 ? 1.15 : 1);
   camera.updateProjectionMatrix();
   layoutLogo();
 }
 addEventListener('resize', resize);
 if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas.parentElement);
-let lastScale = -1;
 
-// logo on screen (and into recordings)
+// logo
 const logoImg = $('logo'); let logoLoaded = null;
 function logoRect(W, H) {
   if (!UI.logo || !logoImg.naturalWidth) return null;
   const w = W * UI.logoSize, h = w * logoImg.naturalHeight / logoImg.naturalWidth, m = Math.min(W, H) * 0.04;
-  const x = [m, W - w - m, m, W - w - m, (W - w) / 2][UI.logoPos], y = [m, m, H - h - m, H - h - m, (H - h) / 2][UI.logoPos];
-  return [x, y, w, h];
+  return [[m, W - w - m, m, W - w - m, (W - w) / 2][UI.logoPos], [m, m, H - h - m, H - h - m, (H - h) / 2][UI.logoPos], w, h];
 }
 function layoutLogo() {
-  if (!UI.logo) { logoImg.style.display = 'none'; return; }
+  if (!UI.logo) { logoImg.hidden = true; return; }
   if (logoLoaded !== UI.logo) { logoLoaded = UI.logo; logoImg.onload = layoutLogo; logoImg.src = UI.logo; return; }
-  // map onto the displayed canvas area (object-fit: contain)
   const s = canvas.parentElement.getBoundingClientRect(), cw = canvas.width, ch = canvas.height;
-  const sc = Math.min(s.width / cw, s.height / ch), dw = cw * sc, dh = ch * sc, ox = (s.width - dw) / 2, oy = (s.height - dh) / 2;
-  const r = logoRect(dw, dh); if (!r) return;
-  Object.assign(logoImg.style, { display: 'block', left: ox + r[0] + 'px', top: oy + r[1] + 'px', width: r[2] + 'px', opacity: UI.logoOpacity });
+  const sc = Math.min(s.width / cw, s.height / ch), dw = cw * sc, dh = ch * sc, r = logoRect(dw, dh); if (!r) return;
+  logoImg.hidden = false;
+  Object.assign(logoImg.style, { left: (s.width - dw) / 2 + r[0] + 'px', top: (s.height - dh) / 2 + r[1] + 'px', width: r[2] + 'px', opacity: UI.logoOpacity });
 }
 
 // ===== Audio (web preview; in the plugin the analysis runs in C++) =====
 let actx = null, analyser = null, bins = null, mode = 'idle', audioEl = null, demo = null, recDest = null;
-const raw = new Array(NMOD).fill(0), lv = new Array(NMOD).fill(0);
+const raw = new Array(NMOD).fill(0), lv = new Array(NMOD).fill(0), xin = new Array(NMOD).fill(0);
 function ensureCtx() {
   if (actx) return;
   actx = new (window.AudioContext || window.webkitAudioContext)();
@@ -651,7 +886,7 @@ function readAnalyser() {
   analyser.getByteFrequencyData(bins);
   const hz = actx.sampleRate / analyser.fftSize;
   for (let i = 1; i <= NMOD; i++) {
-    const lo = Math.min(P['m' + i + '_lo'], P['m' + i + '_hi']), hi = Math.max(P['m' + i + '_lo'], P['m' + i + '_hi']);
+    const lo = Math.min(mp(i, 'lo'), mp(i, 'hi')), hi = Math.max(mp(i, 'lo'), mp(i, 'hi'));
     const a = Math.max(1, Math.floor(lo / hz)), z = Math.min(bins.length - 1, Math.max(a, Math.ceil(hi / hz)));
     let s = 0; for (let k = a; k <= z; k++) s += bins[k];
     raw[i - 1] = s / (z - a + 1) / 255;
@@ -663,14 +898,13 @@ function makeDemo() {
   const nd = noise.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
   const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
   const chords = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]];
-  const bpm = 122, step = 60 / bpm / 4;
-  let next = 0, n = 0, timer = null;
+  const step = 60 / 122 / 4; let next = 0, n = 0, timer = null;
   function env(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
   function kick(t) { const o = actx.createOscillator(), g = actx.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.14); env(g, t, 0.003, 1, 0.42); o.connect(g).connect(out); o.start(t); o.stop(t + 0.5); }
   function nz(t, type, f, peak, d) { const s = actx.createBufferSource(); s.buffer = noise; const fl = actx.createBiquadFilter(); fl.type = type; fl.frequency.value = f; const g = actx.createGain(); env(g, t, 0.002, peak, d); s.connect(fl).connect(g).connect(out); s.start(t, Math.random() * 0.5); s.stop(t + d + 0.05); }
   function tone(t, type, f, peak, d, cut) { const o = actx.createOscillator(), g = actx.createGain(), fl = actx.createBiquadFilter(); o.type = type; o.frequency.value = f; fl.type = 'lowpass'; fl.frequency.setValueAtTime(cut * 3, t); fl.frequency.exponentialRampToValueAtTime(cut, t + d); env(g, t, 0.005, peak, d); o.connect(fl).connect(g).connect(out); o.start(t); o.stop(t + d + 0.05); }
   function play(i, t) {
-    const s = i % 16, bar = Math.floor(i / 16) % 4, ch = chords[bar], sec = Math.floor(i / 64) % 2;
+    const s = i % 16, ch = chords[Math.floor(i / 16) % 4], sec = Math.floor(i / 64) % 2;
     if (s % 4 === 0) kick(t);
     if (s === 4 || s === 12) { nz(t, 'bandpass', 1900, 0.55, 0.18); tone(t, 'triangle', 190, 0.25, 0.08, 800); }
     nz(t, 'highpass', 8000, s % 4 === 2 ? 0.22 : 0.09, s % 4 === 2 ? 0.12 : 0.035);
@@ -679,23 +913,19 @@ function makeDemo() {
     if (sec === 1 && s % 2 === 0) tone(t, 'square', mtof(ch[(s / 2) % 3] + 12 + (s >= 8 ? 12 : 0)), 0.07, 0.14, 3200);
   }
   function tick() { while (next < actx.currentTime + 0.12) { play(n++, next); next += step; } }
-  return {
-    start() { next = actx.currentTime + 0.05; tick(); timer = setInterval(tick, 25); out.gain.setTargetAtTime(0.7, actx.currentTime, 0.02); },
-    stop() { clearInterval(timer); out.gain.setTargetAtTime(0, actx.currentTime, 0.05); },
-  };
+  return { start() { next = actx.currentTime + 0.05; tick(); timer = setInterval(tick, 25); out.gain.setTargetAtTime(0.7, actx.currentTime, 0.02); },
+           stop() { clearInterval(timer); out.gain.setTargetAtTime(0, actx.currentTime, 0.05); } };
 }
-const playBtn = $('play'), statusEl = $('status');
-function setStatus(t) { statusEl.textContent = t; }
+const playBtn = $('play');
 playBtn.addEventListener('click', () => {
   ensureCtx(); actx.resume();
   if (mode === 'demo' || mode === 'file') {
     if (mode === 'demo') demo.stop(); else audioEl.pause();
-    playBtn.innerHTML = mode === 'demo' ? '&#9654; Play demo beat' : '&#9654; Play file';
-    playBtn.dataset.paused = mode; mode = 'idle'; setStatus('Paused.'); return;
+    playBtn.innerHTML = '&#9654; ' + (mode === 'demo' ? 'Play demo' : 'Play file'); playBtn.dataset.paused = mode; mode = 'idle'; setStatus('Paused.'); return;
   }
   if (playBtn.dataset.paused === 'file' && audioEl) { audioEl.play(); mode = 'file'; playBtn.innerHTML = '&#10074;&#10074; Pause'; setStatus('Playing your file.'); return; }
   if (!demo) demo = makeDemo();
-  demo.start(); mode = 'demo'; playBtn.innerHTML = '&#10074;&#10074; Pause'; setStatus('Demo beat, 122 BPM, A minor');
+  demo.start(); mode = 'demo'; playBtn.innerHTML = '&#10074;&#10074; Pause'; setStatus('Demo beat, 122 BPM');
 });
 $('file').addEventListener('change', e => {
   const f = e.target.files[0]; if (!f) return;
@@ -711,18 +941,17 @@ $('file').addEventListener('change', e => {
 let recorder = null, recStart = 0, recChunks = [], comp = null, cctx = null, recMime = '', recSeq = Promise.resolve();
 const RES = [720, 1080, 1440, 2160], FPS = [30, 60, 120];
 function pickMime(alpha) {
-  const list = alpha ? ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
-                     : ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+  const list = alpha ? ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'] : ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
   return list.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
 }
 function b64(buf) { let s = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+function recLabel(on, t) { $('rec').classList.toggle('on', on); $('rec2').classList.toggle('on', on); $('rect').textContent = on ? t : 'Rec'; $('rect2').textContent = on ? 'Stop recording ' + t : 'Start recording'; }
 function startRec() {
   if (!window.MediaRecorder || !canvas.captureStream) { setStatus('Recording is not supported in this browser.'); return; }
   const short = RES[UI.recRes], f = UI.recFormat;
   recDims = f === 0 ? [Math.round(short * 16 / 9), short] : f === 1 ? [short, Math.round(short * 16 / 9)] : [short, short];
   resize();
-  comp = document.createElement('canvas'); comp.width = recDims[0]; comp.height = recDims[1];
-  cctx = comp.getContext('2d');
+  comp = document.createElement('canvas'); comp.width = recDims[0]; comp.height = recDims[1]; cctx = comp.getContext('2d');
   const stream = comp.captureStream(FPS[UI.recFps]);
   if (recDest && !inPlugin()) recDest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
   recMime = pickMime(UI.transparent);
@@ -738,14 +967,11 @@ function startRec() {
     else recChunks.push(e.data);
   };
   recorder.onstop = () => finishRec(ext);
-  recorder.start(1000); recStart = performance.now();
-  $('rec').classList.add('on');
+  recorder.start(1000); recStart = performance.now(); recLabel(true, '0:00');
   setStatus('Recording ' + recDims[0] + 'x' + recDims[1] + ' at ' + FPS[UI.recFps] + ' fps' + (UI.transparent && ext === 'webm' ? ', transparent' : '') + '.');
 }
-function stopRec() { if (recorder && recorder.state !== 'inactive') recorder.stop(); }
 async function finishRec(ext) {
-  $('rec').classList.remove('on'); $('rect').textContent = 'Record';
-  recDims = null; recorder = null; resize();
+  recLabel(false); recDims = null; recorder = null; resize();
   if (juce()) { await recSeq; juce().emitEvent('rec-end', {}); setStatus('Saving...'); return; }
   const blob = new Blob(recChunks, { type: recMime }); recChunks = [];
   const name = 'sphere-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + ext;
@@ -756,19 +982,19 @@ async function finishRec(ext) {
   try { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setStatus('Saved ' + name + '.'); }
   catch (e) { setStatus('Could not save the recording here.'); }
 }
-$('rec').addEventListener('click', () => (recorder ? stopRec() : startRec()));
+const toggleRec = () => { if (recorder) { if (recorder.state !== 'inactive') recorder.stop(); } else startRec(); };
+$('rec').addEventListener('click', toggleRec); $('rec2').addEventListener('click', toggleRec);
 
 // ===== Plugin bridge =====
 function connectPlugin() {
   if (!juce() || inPlugin()) return;
-  document.body.classList.add('in-plugin'); mode = 'plugin';
-  $('sub').textContent = 'audio visualizer'; setStatus('Live input');
+  document.body.classList.add('in-plugin'); mode = 'plugin'; setStatus('Live input');
   const be = juce();
   be.addEventListener('levels', d => {
     if (d && d.b) for (let i = 0; i < NMOD; i++) raw[i] = d.b[i] || 0;
     if (d && d.p) { let ch = false; for (const k in d.p) if (k in P && Math.abs(P[k] - d.p[k]) > 1e-4) { P[k] = d.p[k]; ch = true; } if (ch) render(); }
   });
-  be.addEventListener('ui', s => { if (!s) { applyFactory(0); return; } try { Object.assign(UI, JSON.parse(s)); render(); } catch (e) {} }); // empty = new instance
+  be.addEventListener('ui', s => { if (!s) { applyFactory(0); return; } try { Object.assign(UI, JSON.parse(s)); render(); } catch (e) {} });
   be.addEventListener('presets', s => { try { userPresets = JSON.parse(s) || []; render(); } catch (e) {} });
   be.addEventListener('rec-saved', d => setStatus(d && d.path ? 'Saved to ' + d.path : 'Could not save the recording.'));
   be.emitEvent('ready', {});
@@ -776,67 +1002,68 @@ function connectPlugin() {
 
 // ===== Frame loop =====
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const base = {}, cur = {}; VIS.forEach(v => { base[v.id] = P[v.id]; cur[v.id] = P[v.id]; });
-const colA = new THREE.Color(UI.a), colB = new THREE.Color(UI.b), colBg = new THREE.Color(UI.bg), tmpC = new THREE.Color();
-let last = performance.now(), time = 0, flowT = 0, spin = 0, cycleAt = 0;
+const col = { c1: new THREE.Color(UI.c1), c2: new THREE.Color(UI.c2), c3: new THREE.Color(UI.c3), c4: new THREE.Color(UI.c4) }, tmpC = new THREE.Color();
+let last = performance.now(), flowT = 0, spin = 0, cycleHue = 0, loud = 0, knobTick = 0;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; time += dt;
   if (Math.round(P.rscale) !== lastScale) { lastScale = Math.round(P.rscale); resize(); }
   if (mode === 'demo' || mode === 'file') readAnalyser();
   else if (mode === 'idle') {
-    const beat = (time * 2.03) % 1, kick = 0.25 + 0.55 * Math.exp(-beat * 6);
-    for (let i = 1; i <= NMOD; i++) { const lo = P['m' + i + '_lo']; raw[i - 1] = lo < 150 ? kick : 0.3 + 0.18 * Math.sin(time * (1 + i * 0.37) + i); }
+    const beat = (time * 2.03) % 1, kick = 0.3 + 0.55 * Math.exp(-beat * 6);
+    for (let i = 1; i <= NMOD; i++) raw[i - 1] = mp(i, 'lo') < 150 ? kick : 0.3 + 0.2 * Math.max(0, Math.sin(time * (1.3 + i * 0.41) + i));
   }
   if (UI.cycle > 0 && !recorder && time > cycleAt) { if (cycleAt > 0) stepPreset(1); cycleAt = time + UI.cycle; }
-  const rel = 1 - Math.pow(0.02 + 0.97 * P.smooth, dt * 60);
+  let lsum = 0;
   for (let i = 1; i <= NMOD; i++) {
-    const k = 'm' + i + '_'; let t = 0;
-    if (+P[k + 'on'] > 0.5) {
-      if (Math.round(P[k + 'src']) === 1) t = 0.5 + 0.5 * Math.sin(Math.PI * 2 * P[k + 'rate'] * time + i);
-      else t = clamp((raw[i - 1] - 0.28) / 0.55 * P.sens, 0, 1);
-    }
-    const j = i - 1; lv[j] += (t - lv[j]) * (t > lv[j] ? Math.min(1, rel * 3 + 0.35) : rel);
-    $('chiplv' + i).style.width = (lv[j] * 100).toFixed(1) + '%'; $('mlv' + i).style.width = (lv[j] * 100).toFixed(1) + '%';
+    let x = 0;
+    if (mp(i, 'on') > 0.5) x = Math.round(mp(i, 'src')) === 1 ? 0.5 + 0.5 * Math.sin(Math.PI * 2 * mp(i, 'rate') * time + i) : clamp((raw[i - 1] - 0.28) / 0.55 * P.sens, 0, 1);
+    xin[i - 1] = x;
+    const y = shapeCurve(x, i), j = i - 1, tc = (y > lv[j] ? mp(i, 'att') : mp(i, 'rel')) / 1000;
+    lv[j] += (y - lv[j]) * (1 - Math.exp(-dt / Math.max(tc, 0.001)));
+    lsum += lv[j];
+    $('chiplv' + i).style.width = (lv[j] * 100).toFixed(1) + '%'; $('mm' + i).style.width = (lv[j] * 100).toFixed(1) + '%';
   }
+  if (openM && !$('mb' + openM).hidden) drawCurve(openM, xin[openM - 1]);
   const ease = 1 - Math.exp(-dt * 3);
   VIS.forEach(v => { base[v.id] += (P[v.id] - base[v.id]) * ease; cur[v.id] = base[v.id]; });
-  for (let i = 1; i <= NMOD; i++) {
-    const k = 'm' + i + '_'; if (+P[k + 'on'] <= 0.5) continue;
-    const v = VIS[Math.round(P[k + 'tgt'])]; if (v) cur[v.id] += P[k + 'amt'] * lv[i - 1] * (v.max - v.min) * 0.5;
-  }
+  for (let i = 1; i <= NMOD; i++) { if (mp(i, 'on') <= 0.5) continue; const v = VIS[Math.round(mp(i, 'tgt'))]; if (v) cur[v.id] += mp(i, 'amt') * lv[i - 1] * (v.max - v.min) * 0.5; }
   VIS.forEach(v => (cur[v.id] = clamp(cur[v.id], v.min, v.max)));
-  colA.lerp(tmpC.set(UI.a), ease); colB.lerp(tmpC.set(UI.b), ease); colBg.lerp(tmpC.set(UI.bg), ease);
-  U.uA.value.copy(colA); U.uB.value.copy(colB);
-  const transparentRec = recorder && UI.transparent && !recMime.includes('mp4');
-  renderer.setClearColor(colBg, transparentRec ? 0 : 1);
+  if (++knobTick % 2 === 0) VIS.forEach(v => drawKnob(v.id, P[v.id], cur[v.id]));
+  ['c1', 'c2', 'c3', 'c4'].forEach(k => col[k].lerp(tmpC.set(UI[k]), ease));
+  U.uC1.value.copy(col.c1); U.uC2.value.copy(col.c2); U.uC3.value.copy(col.c3);
+  loud += (lsum / NMOD - loud) * 0.15;
+  if (UI.cmode === 1) cycleHue = (cycleHue + dt * UI.cspeed) % 1;
+  U.uSpectrum.value += ((UI.cmode === 2 ? 1 : 0) - U.uSpectrum.value) * ease;
+  const hue = cur.hue + (UI.cmode === 1 ? cycleHue : 0) + (UI.cmode === 3 ? loud * 0.8 : 0);
   const m = reduce ? 0.3 : 1;
   flowT += dt * cur.flow * m; spin += dt * cur.spin * m;
-  ball.scale.setScalar(cur.zoom); ball.rotation.y = spin; ball.rotation.x = cur.tilt + Math.sin(time * 0.2) * 0.12 * m;
-  U.uTime.value = flowT; U.uDistort.value = cur.disp * 0.7; U.uFreq.value = cur.detail; U.uTwist.value = cur.twist;
-  U.uGlow.value = cur.glow; U.uShift.value = cur.hue;
-  wireMat.uniforms.uAlpha.value = cur.wire * 0.6; wire.visible = cur.wire > 0.01;
-  halo.material.color.copy(colB); halo.material.opacity = Math.min(1, 0.1 + cur.glow * 0.35) * (P.shape === 5 ? 0.4 : 1);
-  halo.scale.setScalar(4 + cur.zoom * 2 + cur.glow * 1.5);
-  pmat.color.copy(colA); pmat.size = 0.03 + cur.particles * 0.1; pmat.opacity = cur.particles; points.visible = cur.particles > 0.01;
-  points.rotation.y = -spin * 0.4; points.rotation.z = time * 0.03 * m;
-  renderer.render(scene, camera);
+  ball.scale.setScalar(cur.zoom); ball.rotation.y = spin; ball.rotation.x = cur.tilt + Math.sin(time * 0.2) * 0.1 * m;
+  U.uTime.value = flowT; U.uDisp.value = cur.disp; U.uFreq.value = cur.detail; U.uTwist.value = cur.twist; U.uSpikes.value = cur.spikes;
+  const flat = P.shape === 5 ? 0.5 : 1;
+  shells.forEach((s, i) => (s.material.uniforms.uOpacity.value = cur.fluff * (0.24 - 0.03 * i) * flat));
+  fur.material.uniforms.uOpacity.value = Math.min(1, cur.spikes * 1.6) * 0.16; fur.visible = cur.spikes > 0.01;
+  shards.material.uniforms.uOpacity.value = cur.shards * 0.55; shards.visible = cur.shards > 0.01;
+  pmat.color.copy(col.c3); pmat.size = 0.025 + cur.particles * 0.07; pmat.opacity = cur.particles; points.visible = cur.particles > 0.01;
+  points.rotation.y = -spin * 0.35; points.rotation.z = time * 0.03 * m;
+  const fu = finalMat.uniforms;
+  fu.uGlow.value = cur.glow; fu.uExposure.value = cur.bright; fu.uSat.value = cur.sat; fu.uHue.value = hue; fu.uBg.value.copy(col.c4);
+  fu.uTransparent.value = recorder && UI.transparent && !recMime.includes('mp4') ? 1 : 0;
+  renderFrame();
   if (recorder && cctx) {
-    cctx.clearRect(0, 0, comp.width, comp.height);
-    cctx.drawImage(canvas, 0, 0, comp.width, comp.height);
+    cctx.clearRect(0, 0, comp.width, comp.height); cctx.drawImage(canvas, 0, 0, comp.width, comp.height);
     const r = logoRect(comp.width, comp.height);
     if (r) { cctx.globalAlpha = UI.logoOpacity; cctx.drawImage(logoImg, r[0], r[1], r[2], r[3]); cctx.globalAlpha = 1; }
-    const s = Math.floor((now - recStart) / 1000); $('rect').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    const s = Math.floor((now - recStart) / 1000); recLabel(true, Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'));
   }
   requestAnimationFrame(frame);
 }
 
 // ===== Start =====
-try { const s = localStorage.getItem('sphere-ui'); if (s) Object.assign(UI, JSON.parse(s)); } catch (e) {}
-try { const s = localStorage.getItem('sphere-presets'); if (s) userPresets = JSON.parse(s) || []; } catch (e) {}
-const startIdx = Math.max(0, FACTORY.findIndex(f => f.name === UI.preset));
-if (!juce()) applyFactory(startIdx); // in the plugin, the host's saved parameters win
-VIS.forEach(v => { base[v.id] = P[v.id]; });
-colA.set(UI.a); colB.set(UI.b); colBg.set(UI.bg);
+try { const s = localStorage.getItem('sphere-ui-v3'); if (s) Object.assign(UI, JSON.parse(s)); } catch (e) {}
+try { const s = localStorage.getItem('sphere-presets-v3'); if (s) userPresets = JSON.parse(s) || []; } catch (e) {}
+if (!juce()) applyFactory(Math.max(0, FACTORY.findIndex(f => f.name === UI.preset))); // in the plugin, the host's saved parameters win
+VIS.forEach(v => { base[v.id] = P[v.id]; cur[v.id] = P[v.id]; });
+['c1', 'c2', 'c3', 'c4'].forEach(k => col[k].set(UI[k]));
 render(); resize();
 connectPlugin(); setTimeout(connectPlugin, 300); setTimeout(connectPlugin, 1200);
 requestAnimationFrame(frame);

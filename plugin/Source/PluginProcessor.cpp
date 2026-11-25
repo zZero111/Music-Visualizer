@@ -48,7 +48,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout SphereAudioProcessor::create
     layout.add (std::make_unique<AudioParameterChoice> (ParameterID { "rscale", 1 }, "Render Scale",
                     StringArray { "50%", "75%", "100%", "150%" }, 2));
     layout.add (std::make_unique<AudioParameterFloat> (ParameterID { "sens", 1 }, "Sensitivity", NormalisableRange<float> (0.2f, 3.0f), 1.2f));
-    layout.add (std::make_unique<AudioParameterFloat> (ParameterID { "smooth", 1 }, "Smoothing", NormalisableRange<float> (0.0f, 1.0f), 0.55f));
 
     NormalisableRange<float> hz (20.0f, 20000.0f);
     hz.setSkewForCentre (1000.0f);
@@ -62,6 +61,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout SphereAudioProcessor::create
         layout.add (std::make_unique<AudioParameterFloat>  (ParameterID { modId (i, "rate"), 1 }, n + "LFO Rate", NormalisableRange<float> (0.02f, 8.0f, 0.0f, 0.4f), 0.5f));
         layout.add (std::make_unique<AudioParameterChoice> (ParameterID { modId (i, "tgt"), 1 },  n + "Target", targets, 0));
         layout.add (std::make_unique<AudioParameterFloat>  (ParameterID { modId (i, "amt"), 1 },  n + "Amount", NormalisableRange<float> (-1.0f, 1.0f), 0.5f));
+        layout.add (std::make_unique<AudioParameterFloat>  (ParameterID { modId (i, "bend"), 1 }, n + "Curve", NormalisableRange<float> (-1.0f, 1.0f), 0.3f));
+        layout.add (std::make_unique<AudioParameterFloat>  (ParameterID { modId (i, "thr"), 1 },  n + "Threshold", NormalisableRange<float> (0.0f, 0.9f), 0.05f));
+        layout.add (std::make_unique<AudioParameterFloat>  (ParameterID { modId (i, "att"), 1 },  n + "Attack ms", NormalisableRange<float> (1.0f, 500.0f, 0.0f, 0.5f), 10.0f));
+        layout.add (std::make_unique<AudioParameterFloat>  (ParameterID { modId (i, "rel"), 1 },  n + "Release ms", NormalisableRange<float> (10.0f, 2000.0f, 0.0f, 0.5f), 180.0f));
     }
     return layout;
 }

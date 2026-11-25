@@ -2,14 +2,16 @@
 
 An audio-reactive 3D visualizer you put on a track in your DAW.
 
+- **Layered, glowing look:** a soft core of see-through shells, thousands of spike strands, a wireframe shard shell and particles, finished with bloom and filmic tone mapping.
 - **6 shapes:** sphere, cube, diamond, torus, knot and a flat plane (2D terrain).
-- **11 visual parameters:** zoom, displacement, detail, flow speed, spin, tilt, twist, hue shift, glow, wireframe and particles.
-- **8 modifiers.** Each one follows a frequency range you set in Hz (or a steady LFO) and pushes one parameter up or down by an amount from -1 to +1. Drag a modifier chip onto a parameter to assign it.
+- **15 knobs:** zoom, displace, spikes, detail, twist, flow, spin, tilt, fluff, shards, particles, glow, brightness, hue and saturation. Orange rings on each knob show live modulation.
+- **8 modifiers.** Each one follows a frequency range you set in Hz (or an LFO) and pushes one knob up or down. Drag a modifier from the dock onto a knob to assign it.
+- **Response curves:** every modifier has a drawable curve (drag sideways for the threshold, up and down for the shape), Linear / Punchy / Smooth / Gate presets, and attack and release times.
+- **Colour:** core, glow, tips and background colours, 14 palettes, Randomize, and colour modes (Static, Cycle, Spectrum, Reactive).
 - **25 factory presets**, unlimited saved presets (shared across projects) and auto-play through presets.
-- **Custom colours** (core, edge, background) and a **logo overlay** with position, size and opacity.
-- **Recording** in landscape 16:9, vertical 9:16 or square, at 720p, 1080p, 1440p or 4K and 30/60/120 fps, with an optional transparent background (WebM). In the plugin, videos are saved to `Movies/Sphere Visualizer` with a WAV of the track.
-- **Performance settings:** mesh density and render scale.
-- **Every parameter can be automated**, so DAW LFOs, automation lanes and MIDI controllers (through your DAW's MIDI learn) can move it.
+- **Logo overlay** with position, size and opacity.
+- **Recording** in 16:9, 9:16 or 1:1, at 720p to 4K and 30/60/120 fps, with an optional transparent background (WebM). In the plugin, videos are saved to `Movies/Sphere Visualizer` with a WAV of the track.
+- **Every knob and modifier setting can be automated**, so DAW LFOs, automation lanes and MIDI controllers (through your DAW's MIDI learn) can move it.
 
 ## How it's put together
 
