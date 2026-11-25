@@ -169,6 +169,7 @@ body.in-plugin .plugin-only { display: revert !important; }
     </div>
     <div class="panes">
       <div class="pane" data-pane="shape">
+        <section class="sec"><h3>Style mix</h3><div class="seg" id="styles" style="--n:5"></div><div class="knobs" data-group="mix"></div></section>
         <div class="seg" id="shapes" style="--n:6"></div>
         <section class="sec"><h3>Form</h3><div class="knobs" data-group="form"></div></section>
         <section class="sec"><h3>Motion &amp; layers</h3><div class="knobs" data-group="motion"></div></section>
@@ -223,8 +224,8 @@ body.in-plugin .plugin-only { display: revert !important; }
         <section class="sec"><h3>Frame rate</h3><div class="seg" id="rfps"></div></section>
         <label class="check"><input type="checkbox" id="transp"> Transparent background (WebM)</label>
         <button class="btn rec recbig" id="rec2" type="button"><span class="dot"></span><span id="rect2">Start recording</span></button>
-        <p class="note web-only">The recording includes the audio you're playing. High resolutions and frame rates depend on your graphics card; if the video stutters, step down one.</p>
-        <p class="note plugin-only">Videos are saved to Movies/Sphere Visualizer with a matching WAV of the track.</p>
+        <p class="note web-only">Record starts your track (or the demo) from the beginning and stops when a loaded track ends. The recording includes the audio you're playing. High resolutions and frame rates depend on your graphics card; if the video stutters, step down one.</p>
+        <p class="note plugin-only">Press Record, then play your DAW: recording starts and stops with the transport. Videos are saved to Movies/Sphere Visualizer with a matching WAV of the track.</p>
       </div>
     </div>
     <div class="dock" id="dock"></div>
@@ -240,6 +241,7 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const esc = s => String(s).replace(/[<&>"]/g, '');
 
 // ===== Parameter model (must match plugin/Source/PluginProcessor.h) =====
+const STYLES = ['Nova', 'Ribbons', 'Mesh', 'Burst', 'Plasma'];
 const SHAPES = ['Sphere', 'Cube', 'Diamond', 'Torus', 'Knot', 'Plane'];
 const DENSITY = ['Low', 'Medium', 'High', 'Ultra'];
 const RSCALE = [0.5, 0.75, 1, 1.5];
@@ -259,7 +261,13 @@ const VIS = [
   { id: 'bright', name: 'Bright', min: 0.2, max: 3, def: 1, g: 'light' },
   { id: 'hue', name: 'Hue', min: 0, max: 1, def: 0, g: 'light' },
   { id: 'sat', name: 'Saturate', min: 0, max: 2, def: 1, g: 'light' },
+  { id: 'xnova', name: 'Nova', min: 0, max: 1, def: 1, g: 'mix' },
+  { id: 'xrib', name: 'Ribbons', min: 0, max: 1, def: 0, g: 'mix' },
+  { id: 'xmesh', name: 'Mesh', min: 0, max: 1, def: 0, g: 'mix' },
+  { id: 'xburst', name: 'Burst', min: 0, max: 1, def: 0, g: 'mix' },
+  { id: 'xplasma', name: 'Plasma', min: 0, max: 1, def: 0, g: 'mix' },
 ];
+const MIXIDS = ['xnova', 'xrib', 'xmesh', 'xburst', 'xplasma'];
 const VI = Object.fromEntries(VIS.map((v, i) => [v.id, i]));
 const RANGES = [['Sub', 20, 60], ['Bass', 60, 150], ['Low mid', 150, 800], ['Mid', 800, 2000], ['High mid', 2000, 4000], ['Presence', 4000, 8000], ['Air', 8000, 16000]];
 const NMOD = 8;
@@ -293,6 +301,16 @@ const pal = n => PALETTES.find(p => p[0] === n).slice(1);
 const FX = (name, shape, colors, cmode, vis, mods) => ({ name, shape, colors, cmode, vis, mods });
 const FACTORY = [
   FX('Supernova', 0, pal('Supernova'), 0, { disp: 0.3, spikes: 0.45, fluff: 0.7, shards: 0.35, glow: 1.1 }, [{ b: 1, t: 'zoom', a: 0.35, c: 'Punchy' }, { b: 1, t: 'spikes', a: 0.6, c: 'Punchy' }, { b: 2, t: 'disp', a: 0.4 }, { b: 5, t: 'shards', a: 0.5 }, { b: 6, t: 'particles', a: 0.7 }]),
+  FX('Silk', 0, ['#ff4fa0', '#ff7a3c', '#b8a8ff', '#050307'], 0, { style: 1, disp: 0.45, spikes: 0.35, fluff: 0.8, shards: 0.6, twist: 0.4, flow: 0.4, glow: 1.2, particles: 0.15 }, [{ b: 1, t: 'disp', a: 0.4, c: 'Punchy' }, { b: 2, t: 'twist', a: 0.25 }, { lfo: 0.05, t: 'spin', a: 0.3 }, { b: 5, t: 'glow', a: 0.4 }]),
+  FX('Coral', 0, ['#1f4dff', '#2fb6ff', '#7fe6ff', '#020510'], 0, { style: 2, spikes: 0.6, detail: 2.2, disp: 0.2, fluff: 0.5, shards: 0.6, glow: 1.3, particles: 0.2 }, [{ b: 1, t: 'spikes', a: 0.5, c: 'Punchy' }, { b: 4, t: 'detail', a: 0.25 }, { b: 0, t: 'zoom', a: 0.25 }]),
+  FX('Shockwave', 0, ['#1d4dff', '#5ff3ff', '#7ff9ff', '#02040a'], 0, { style: 3, spikes: 0.6, fluff: 0.5, glow: 1.4, particles: 0.2, flow: 0.8 }, [{ b: 1, t: 'spikes', a: 0.5, c: 'Punchy' }, { b: 0, t: 'glow', a: 0.5 }, { b: 6, t: 'detail', a: 0.2 }]),
+  FX('Red Giant', 0, ['#ffcc33', '#e01a00', '#fff3a0', '#050000'], 0, { style: 4, detail: 1.2, flow: 0.6, disp: 0.1, spikes: 0.15, glow: 1.2, fluff: 0.5, particles: 0.1 }, [{ b: 1, t: 'zoom', a: 0.2, c: 'Punchy' }, { b: 3, t: 'flow', a: 0.4 }, { b: 5, t: 'glow', a: 0.4 }]),
+  FX('Aurora Silk', 0, pal('Aurora'), 1, { style: 1, disp: 0.35, spikes: 0.5, fluff: 0.7, shards: 0.4, twist: -0.6, glow: 1.1 }, [{ b: 1, t: 'zoom', a: 0.3 }, { b: 2, t: 'spikes', a: 0.4 }, { lfo: 0.07, t: 'tilt', a: 0.3 }]),
+  FX('Urchin Mesh', 0, pal('Toxic'), 0, { style: 2, spikes: 0.8, detail: 3, disp: 0.1, shards: 0.8, fluff: 0.3 }, [{ b: 1, t: 'spikes', a: 0.4, c: 'Gate' }, { b: 5, t: 'glow', a: 0.5 }]),
+  FX('Hyperdrive', 0, pal('Vapor'), 2, { style: 3, spikes: 0.8, fluff: 0.3, glow: 1.6, spin: 0.4 }, [{ b: 1, t: 'spikes', a: 0.4, c: 'Gate' }, { b: 3, t: 'twist', a: 0.3 }]),
+  FX('Blue Dwarf', 0, ['#9fe6ff', '#1a3cff', '#ffffff', '#000208'], 0, { style: 4, detail: 1.8, flow: 0.9, spikes: 0.25, glow: 1.3 }, [{ b: 1, t: 'zoom', a: 0.2 }, { b: 5, t: 'spikes', a: 0.4 }]),
+  FX('Eclipse', 0, ['#ffcc33', '#d01400', '#ff9a4a', '#030000'], 0, { xnova: 0, xplasma: 1, xburst: 0.7, spikes: 0.45, detail: 1.3, glow: 1.3 }, [{ b: 1, t: 'xburst', a: 0.6, c: 'Punchy' }, { b: 3, t: 'flow', a: 0.3 }]),
+  FX('Silk Nova', 0, pal('Supernova'), 0, { xnova: 0.6, xrib: 0.8, disp: 0.35, spikes: 0.35, shards: 0.3 }, [{ b: 1, t: 'zoom', a: 0.3, c: 'Punchy' }, { b: 2, t: 'xrib', a: -0.5 }, { lfo: 0.05, t: 'twist', a: 0.3 }]),
   FX('Nebula', 0, pal('Aurora'), 0, { disp: 0.25, spikes: 0.2, fluff: 0.8, shards: 0.15, glow: 1 }, [{ b: 1, t: 'zoom', a: 0.4 }, { b: 2, t: 'disp', a: 0.5 }, { b: 6, t: 'particles', a: 0.8 }, { lfo: 0.04, t: 'hue', a: 0.2 }]),
   FX('Magma', 0, pal('Ember'), 0, { disp: 0.45, detail: 1.1, flow: 0.9, spikes: 0.25, glow: 1.2 }, [{ b: 1, t: 'disp', a: 0.5, c: 'Punchy' }, { b: 3, t: 'glow', a: 0.5 }, { b: 0, t: 'zoom', a: 0.3 }]),
   FX('Urchin', 0, pal('Toxic'), 0, { disp: 0.1, spikes: 0.8, fluff: 0.4, detail: 2.5 }, [{ b: 1, t: 'spikes', a: 0.6, c: 'Gate' }, { b: 5, t: 'detail', a: 0.3 }, { b: 6, t: 'shards', a: 0.6 }]),
@@ -341,6 +359,7 @@ function segFill(id, labels, fn) {
   $(id).innerHTML = labels.map((s, i) => `<button type="button" data-v="${i}">${s}</button>`).join('');
   $(id).addEventListener('click', e => { const b = e.target.closest('button'); if (b) fn(+b.dataset.v); });
 }
+segFill('styles', STYLES, v => { MIXIDS.forEach((id, k) => setParam(id, k === v ? 1 : 0)); });
 segFill('shapes', SHAPES, v => setParam('shape', v));
 segFill('density', DENSITY, v => setParam('density', v));
 segFill('rscale', RSCALE.map(s => s * 100 + '%'), v => setParam('rscale', v));
@@ -528,7 +547,9 @@ let userPresets = [];
 $('factory').innerHTML = FACTORY.map((f, i) => `<button type="button" class="pb" data-i="${i}"><i style="background:linear-gradient(90deg,${f.colors[3]},${f.colors[1]} 35%,${f.colors[0]} 60%,${f.colors[2]})"></i>${f.name}</button>`).join('');
 function applyFactory(i) {
   const f = FACTORY[i];
-  P.shape = f.shape; VIS.forEach(v => (P[v.id] = v.def)); Object.assign(P, f.vis);
+  P.shape = f.shape; VIS.forEach(v => (P[v.id] = v.def));
+  const { style, ...fv } = f.vis; Object.assign(P, fv);
+  if (style) MIXIDS.forEach((id, k) => (P[id] = k === style ? 1 : 0));
   for (let m = 1; m <= NMOD; m++) for (const k in MODDEF) P['m' + m + '_' + k] = MODDEF[k];
   f.mods.forEach((md, j) => {
     const k = 'm' + (j + 1) + '_';
@@ -573,7 +594,7 @@ const base = {}, cur = {}; VIS.forEach(v => { base[v.id] = P[v.id]; cur[v.id] = 
 function rangeName(lo, hi) { const r = RANGES.find(r => r[1] === Math.round(lo) && r[2] === Math.round(hi)); return r ? r[0] : Math.round(lo) + '\u2013' + Math.round(hi) + ' Hz'; }
 function render() {
   const pr = (id, v) => document.querySelectorAll('#' + id + ' button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === Math.round(v)));
-  pr('shapes', P.shape); pr('density', P.density); pr('rscale', P.rscale); pr('rformat', UI.recFormat); pr('rres', UI.recRes); pr('rfps', UI.recFps); pr('cmode', UI.cmode);
+  document.querySelectorAll('#styles button').forEach(b => b.setAttribute('aria-pressed', MIXIDS.every((id, k) => Math.abs(P[id] - (k === +b.dataset.v ? 1 : 0)) < 0.01))); pr('shapes', P.shape); pr('density', P.density); pr('rscale', P.rscale); pr('rformat', UI.recFormat); pr('rres', UI.recRes); pr('rfps', UI.recFps); pr('cmode', UI.cmode);
   const badges = {}; VIS.forEach(v => (badges[v.id] = ''));
   for (let i = 1; i <= NMOD; i++) {
     const k = 'm' + i + '_', on = mp(i, 'on') > 0.5, lfo = Math.round(mp(i, 'src')) === 1, tgt = VIS[Math.round(mp(i, 'tgt'))] || VIS[0];
@@ -676,11 +697,12 @@ void main(){
 // radial strands: the spiky fur
 const FUR_V = NOISE + `
 attribute float aT; attribute float aRand;
+uniform float uFurLen;
 varying float vT;
 void main(){
   float d = body(position, 0.0)*uDisp*0.6;
   float sp = snoise(position*uFreq*2.2 + vec3(aRand*5.0, uTime*0.55, 0.0))*0.5 + 0.5;
-  float len = uSpikes*(0.08 + 1.5*pow(sp, 3.0))*(0.45 + 0.9*aRand);
+  float len = uSpikes*uFurLen*(0.08 + 1.5*pow(sp, 3.0))*(0.45 + 0.9*aRand);
   vec3 p = twistP(mapShape(position) + normal*(d + aT*len));
   vT = aT;
   gl_Position = projectionMatrix*modelViewMatrix*vec4(p, 1.0);
@@ -692,6 +714,78 @@ void main(){
   vec3 col = mix(uC2, uC3, smoothstep(0.1, 1.0, vT));
   col = max(hueRot(col, uSpectrum*(1.2 + vT*1.4)), 0.0);
   gl_FragColor = vec4(col, (1.0 - vT*0.8)*uOpacity);
+}`;
+// flowing bands with a fine mesh texture: Ribbons style
+const RIB_V = NOISE + `
+attribute vec3 aBin;
+varying vec2 vUv; varying float vD; varying vec3 vN; varying vec3 vView;
+void main(){
+  float n = body(position*0.9, 0.0);
+  float w = snoise(position*1.3 + vec3(uTime*0.3, 0.0, 2.0));
+  vec3 p = twistP(position + normal*n*uDisp*0.5 + aBin*w*(0.12 + uSpikes*0.6));
+  vUv = uv; vD = n;
+  vec4 mv = modelViewMatrix*vec4(p, 1.0);
+  vView = normalize(-mv.xyz); vN = normalize(normalMatrix*twistP(normal));
+  gl_Position = projectionMatrix*mv;
+}`;
+const RIB_F = HUE + `
+uniform vec3 uC1, uC2, uC3; uniform float uOpacity, uLayer, uSpectrum, uGrid;
+varying vec2 vUv; varying float vD; varying vec3 vN; varying vec3 vView;
+void main(){
+  float gx = abs(fract(vUv.x*360.0) - 0.5), gy = abs(fract(vUv.y*28.0) - 0.5);
+  float grid = max(smoothstep(0.3, 0.5, gx), smoothstep(0.3, 0.5, gy));
+  float rim = pow(1.0 - abs(dot(vN, vView)), 1.3);
+  float edge = pow(abs(vUv.y - 0.5)*2.0, 5.0);
+  vec3 col = mix(uC1, uC3, 0.5 + 0.5*sin(vUv.x*12.566 + uLayer*4.0 + vD*2.0));
+  col = mix(col, uC2, edge*0.8);
+  col = max(hueRot(col, uSpectrum*uLayer*2.4), 0.0);
+  gl_FragColor = vec4(col, uOpacity*(0.12 + 0.45*rim + 0.55*grid*uGrid + edge*0.7));
+}`;
+// dense spiky wireframe: Mesh style
+const MESH_V = NOISE + `
+varying float vH; varying vec3 vN; varying vec3 vView;
+void main(){
+  float r = 1.0 - abs(snoise(position*uFreq*0.9 + vec3(0.0, uTime*0.25, 0.0)));
+  float h = pow(r, 4.0)*uSpikes*1.1 + body(position, 5.0)*uDisp*0.35;
+  vec3 p = twistP(mapShape(position) + normal*h);
+  vH = clamp(h, 0.0, 1.0);
+  vec4 mv = modelViewMatrix*vec4(p, 1.0);
+  vView = normalize(-mv.xyz); vN = normalize(normalMatrix*twistP(normal));
+  gl_Position = projectionMatrix*mv;
+}`;
+const MESH_F = HUE + `
+uniform vec3 uC1, uC2, uC3; uniform float uOpacity, uSpectrum;
+varying float vH; varying vec3 vN; varying vec3 vView;
+void main(){
+  float rim = pow(1.0 - abs(dot(vN, vView)), 1.5);
+  vec3 col = mix(mix(uC1, uC2, rim), uC3, smoothstep(0.3, 1.0, vH));
+  col = max(hueRot(col, uSpectrum*vH*3.0), 0.0);
+  gl_FragColor = vec4(col, uOpacity*(0.2 + 0.6*rim + 0.8*vH));
+}`;
+// solid burning surface: Plasma style
+const PLASMA_V = NOISE + `
+varying vec3 vPos; varying vec3 vN; varying vec3 vView;
+void main(){
+  float d = body(position, 9.0)*uDisp*0.25;
+  vec3 p = twistP(mapShape(position) + normal*d);
+  vPos = position;
+  vec4 mv = modelViewMatrix*vec4(p, 1.0);
+  vView = normalize(-mv.xyz); vN = normalize(normalMatrix*twistP(normal));
+  gl_Position = projectionMatrix*mv;
+}`;
+const PLASMA_F = NOISE + HUE + `
+uniform vec3 uC1, uC2, uC3; uniform float uOpacity, uSpectrum;
+varying vec3 vPos; varying vec3 vN; varying vec3 vView;
+void main(){
+  vec3 q = vPos*uFreq*1.4;
+  float g = snoise(q + vec3(uTime*0.4, 0.0, uTime*0.2))*0.55 + snoise(q*2.7 - vec3(0.0, uTime*0.7, 0.0))*0.3 + snoise(q*7.0 + vec3(uTime))*0.15;
+  float heat = clamp(0.38 + g*0.75, 0.0, 1.0);
+  float rim = pow(1.0 - abs(dot(vN, vView)), 2.0);
+  vec3 col = mix(uC2, uC1, heat*heat);
+  col = mix(col, uC3, smoothstep(0.82, 1.0, heat));
+  col *= 0.55 + 0.6*rim;
+  col = max(hueRot(col, uSpectrum*heat*2.0), 0.0);
+  gl_FragColor = vec4(col, uOpacity);
 }`;
 // low-poly wireframe shell with ridged spikes: the shards
 const SHARD_V = NOISE + `
@@ -726,7 +820,13 @@ for (let s = 0; s < SHELLS; s++) {
   const m = new THREE.Mesh(new THREE.BufferGeometry(), addMat(SHELL_V, SHELL_F, { uScale: { value: 0.55 + 0.45 * l }, uSeed: { value: s * 1.7 }, uLayer: { value: l }, uOpacity: { value: 0.3 } }));
   shells.push(m); ball.add(m);
 }
-const fur = new THREE.LineSegments(new THREE.BufferGeometry(), addMat(FUR_V, FUR_F, { uOpacity: { value: 0.3 } }));
+const fur = new THREE.LineSegments(new THREE.BufferGeometry(), addMat(FUR_V, FUR_F, { uOpacity: { value: 0.3 }, uFurLen: { value: 1 } }));
+const ribbons = [];
+for (let r = 0; r < 5; r++) { const m = new THREE.Mesh(new THREE.BufferGeometry(), addMat(RIB_V, RIB_F, { uOpacity: { value: 0 }, uLayer: { value: r / 4 }, uGrid: { value: 0.5 } })); ribbons.push(m); ball.add(m); }
+const meshSkin = new THREE.Mesh(new THREE.BufferGeometry(), addMat(MESH_V, MESH_F, { uOpacity: { value: 0 } }));
+const meshWire = new THREE.Mesh(new THREE.BufferGeometry(), addMat(MESH_V, MESH_F, { uOpacity: { value: 0 } }, { wireframe: true }));
+const plasma = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.ShaderMaterial({ uniforms: Object.assign({}, U, { uOpacity: { value: 1 } }), vertexShader: PLASMA_V, fragmentShader: PLASMA_F, transparent: true }));
+plasma.renderOrder = -1; ball.add(meshSkin, meshWire, plasma);
 const shards = new THREE.Mesh(new THREE.BufferGeometry(), addMat(SHARD_V, SHARD_F, { uOpacity: { value: 0.3 } }, { wireframe: true }));
 ball.add(fur, shards);
 
@@ -736,6 +836,26 @@ function buildGeo(shape, d, lod) { // lod 0 = full, 1 = shards
   if (shape === 4) return new THREE.TorusKnotGeometry(0.95, 0.3, lod ? [40, 60, 80, 110][d] : [160, 280, 440, 640][d], lod ? [5, 6, 7, 8][d] : [20, 30, 44, 64][d]);
   const n = lod ? [12, 16, 22, 28][d] : [60, 100, 160, 230][d];
   const g = new THREE.PlaneGeometry(4, 4, n, n); g.rotateX(-Math.PI / 2); return g;
+}
+function buildRibbon(seed, d) {
+  const nu = [160, 260, 380, 520][d], nv = [6, 10, 14, 20][d], rnd = (k => () => (k = (k * 16807) % 2147483647) / 2147483647)(seed * 7919 + 13);
+  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rnd() * 6.28, rnd() * 6.28, rnd() * 6.28));
+  const R = 0.85 + rnd() * 0.45, W = 0.35 + rnd() * 0.3, wob = 0.15 + rnd() * 0.25, k = 1 + Math.floor(rnd() * 3), ph = rnd() * 6.28;
+  const pos = [], nor = [], bin = [], uvs = [], idx = [], v3 = new THREE.Vector3(), n3 = new THREE.Vector3(), b3 = new THREE.Vector3(0, 0, 1);
+  for (let i = 0; i <= nu; i++) {
+    const u = i / nu, a = u * Math.PI * 2, rr = R * (1 + wob * Math.sin(a * k + ph));
+    for (let j = 0; j <= nv; j++) {
+      const v = j / nv - 0.5;
+      v3.set(Math.cos(a) * rr, Math.sin(a) * rr, v * W * (1 + 0.4 * Math.sin(a * 2 + ph))).applyQuaternion(q);
+      n3.set(Math.cos(a), Math.sin(a), 0).applyQuaternion(q); const bq = b3.clone().applyQuaternion(q);
+      pos.push(v3.x, v3.y, v3.z); nor.push(n3.x, n3.y, n3.z); bin.push(bq.x, bq.y, bq.z); uvs.push(u, j / nv);
+    }
+  }
+  for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) { const a = i * (nv + 1) + j, b = a + nv + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('aBin', new THREE.Float32BufferAttribute(bin, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); g.setIndex(idx);
+  return g;
 }
 function buildFur(src, count) {
   const sp = src.attributes.position, sn = src.attributes.normal, n = sp.count;
@@ -754,7 +874,7 @@ function buildFur(src, count) {
   g.setAttribute('aT', new THREE.BufferAttribute(t, 1)); g.setAttribute('aRand', new THREE.BufferAttribute(r, 1));
   return g;
 }
-let builtKey = '', fullGeo = null;
+let builtKey = '', fullGeo = null, ribbonD = -1;
 function rebuildIfNeeded() {
   const s = Math.round(P.shape), d = Math.round(P.density), key = s + ':' + d;
   if (key === builtKey) return; builtKey = key;
@@ -763,6 +883,8 @@ function rebuildIfNeeded() {
   shells.forEach(m => (m.geometry = fullGeo));
   fur.geometry.dispose(); fur.geometry = buildFur(fullGeo, [5000, 10000, 18000, 30000][d]);
   shards.geometry.dispose(); shards.geometry = buildGeo(s, d, 1);
+  meshSkin.geometry = fullGeo; meshWire.geometry = fullGeo; plasma.geometry = fullGeo;
+  if (ribbonD !== d) { ribbonD = d; ribbons.forEach((m, i) => { m.geometry.dispose(); m.geometry = buildRibbon(i + 1, d); }); }
   U.uMap.value = s === 1 ? 1 : s === 2 ? 2 : 0; U.uFlat.value = s === 5 ? 1 : 0;
 }
 
@@ -772,14 +894,21 @@ function radialTex() {
   gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.3, 'rgba(255,255,255,0.4)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
 }
-const NP = 2500, ppos = new Float32Array(NP * 3);
+// star field spread all around the camera so it fills the frame from any angle
+const NP = 4500, ppos = new Float32Array(NP * 3), prnd = new Float32Array(NP);
 for (let i = 0; i < NP; i++) {
-  const r = 1.7 + Math.pow(Math.random(), 1.5) * 2.2, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
-  ppos[i * 3] = r * Math.sin(ph) * Math.cos(th); ppos[i * 3 + 1] = r * Math.cos(ph) * 0.7; ppos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+  const r = 1.8 + Math.pow(Math.random(), 1.3) * 13, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+  ppos[i * 3] = r * Math.sin(ph) * Math.cos(th); ppos[i * 3 + 1] = r * Math.cos(ph); ppos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th); prnd[i] = Math.random();
 }
-const pgeo = new THREE.BufferGeometry(); pgeo.setAttribute('position', new THREE.BufferAttribute(ppos, 3));
-const pmat = new THREE.PointsMaterial({ map: radialTex(), size: 0.05, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
-const points = new THREE.Points(pgeo, pmat); scene.add(points);
+const pgeo = new THREE.BufferGeometry(); pgeo.setAttribute('position', new THREE.BufferAttribute(ppos, 3)); pgeo.setAttribute('aR', new THREE.BufferAttribute(prnd, 1));
+const pmat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  uniforms: { uCol: { value: new THREE.Color() }, uOpacity: { value: 1 }, uSize: { value: 0.05 }, uPx: { value: 1 }, uT: { value: 0 } },
+  vertexShader: `uniform float uSize, uPx, uT; attribute float aR; varying float vA;
+  void main(){ vec3 p = position; p.y += sin(uT*0.3 + aR*40.0)*0.2; vec4 mv = modelViewMatrix*vec4(p, 1.0); float d = -mv.z;
+    gl_PointSize = clamp(uSize*360.0*uPx/max(d, 0.1), 1.5*uPx, 18.0*uPx); vA = smoothstep(0.4, 2.0, d)*(0.35 + 0.65*aR); gl_Position = projectionMatrix*mv; }`,
+  fragmentShader: `uniform vec3 uCol; uniform float uOpacity; varying float vA;
+  void main(){ float a = smoothstep(0.5, 0.0, length(gl_PointCoord - 0.5)); gl_FragColor = vec4(uCol, a*a*vA*uOpacity); }` });
+const points = new THREE.Points(pgeo, pmat); points.frustumCulled = false; scene.add(points);
 
 // ----- bloom + tone mapping (custom passes; three r128 core has no post-processing) -----
 const fsScene = new THREE.Scene(), fsCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -933,6 +1062,7 @@ $('file').addEventListener('change', e => {
   if (demo && mode === 'demo') demo.stop();
   if (!audioEl) { audioEl = new Audio(); audioEl.loop = true; actx.createMediaElementSource(audioEl).connect(analyser); }
   audioEl.src = URL.createObjectURL(f);
+  audioEl.onended = () => { if (recorder && recorder.state !== 'inactive') recorder.stop(); mode = 'idle'; playBtn.innerHTML = '&#9654; Play file'; playBtn.dataset.paused = 'file'; };
   audioEl.play().then(() => { mode = 'file'; playBtn.dataset.paused = ''; playBtn.innerHTML = '&#10074;&#10074; Pause'; setStatus('Playing ' + f.name); })
     .catch(() => setStatus('That file could not be played. Try an MP3, WAV or M4A.'));
 });
@@ -946,7 +1076,22 @@ function pickMime(alpha) {
 }
 function b64(buf) { let s = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
 function recLabel(on, t) { $('rec').classList.toggle('on', on); $('rec2').classList.toggle('on', on); $('rect').textContent = on ? t : 'Rec'; $('rect2').textContent = on ? 'Stop recording ' + t : 'Start recording'; }
+let armed = false, hostPlaying = false, hostTransport = -1; // -1 = no transport (standalone app)
+function ensurePlaying() { // start the audio from the top so the recording has the whole track
+  if (inPlugin()) return;
+  ensureCtx(); actx.resume();
+  if (audioEl && audioEl.src) {
+    if (demo && mode === 'demo') demo.stop();
+    audioEl.currentTime = 0; audioEl.loop = false; audioEl.play(); mode = 'file';
+  } else if (mode !== 'demo') { if (!demo) demo = makeDemo(); demo.start(); mode = 'demo'; }
+  playBtn.dataset.paused = ''; playBtn.innerHTML = '&#10074;&#10074; Pause';
+}
 function startRec() {
+  if (inPlugin() && hostTransport === 0) { armed = true; recLabel(true, 'Armed'); setStatus('Armed. Recording starts when you press play in your DAW, and stops when you stop.'); return; }
+  ensurePlaying();
+  beginRec();
+}
+function beginRec() {
   if (!window.MediaRecorder || !canvas.captureStream) { setStatus('Recording is not supported in this browser.'); return; }
   const short = RES[UI.recRes], f = UI.recFormat;
   recDims = f === 0 ? [Math.round(short * 16 / 9), short] : f === 1 ? [short, Math.round(short * 16 / 9)] : [short, short];
@@ -971,6 +1116,7 @@ function startRec() {
   setStatus('Recording ' + recDims[0] + 'x' + recDims[1] + ' at ' + FPS[UI.recFps] + ' fps' + (UI.transparent && ext === 'webm' ? ', transparent' : '') + '.');
 }
 async function finishRec(ext) {
+  if (audioEl) audioEl.loop = true;
   recLabel(false); recDims = null; recorder = null; resize();
   if (juce()) { await recSeq; juce().emitEvent('rec-end', {}); setStatus('Saving...'); return; }
   const blob = new Blob(recChunks, { type: recMime }); recChunks = [];
@@ -982,7 +1128,7 @@ async function finishRec(ext) {
   try { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setStatus('Saved ' + name + '.'); }
   catch (e) { setStatus('Could not save the recording here.'); }
 }
-const toggleRec = () => { if (recorder) { if (recorder.state !== 'inactive') recorder.stop(); } else startRec(); };
+const toggleRec = () => { if (armed) { armed = false; recLabel(false); setStatus('Recording cancelled.'); } else if (recorder) { if (recorder.state !== 'inactive') recorder.stop(); } else startRec(); };
 $('rec').addEventListener('click', toggleRec); $('rec2').addEventListener('click', toggleRec);
 
 // ===== Plugin bridge =====
@@ -992,6 +1138,11 @@ function connectPlugin() {
   const be = juce();
   be.addEventListener('levels', d => {
     if (d && d.b) for (let i = 0; i < NMOD; i++) raw[i] = d.b[i] || 0;
+    if (d && 't' in d) {
+      const was = hostPlaying; hostTransport = d.t; hostPlaying = d.t === 1;
+      if (armed && hostPlaying) { armed = false; beginRec(); }
+      else if (was && !hostPlaying && recorder && recorder.state !== 'inactive') recorder.stop();
+    }
     if (d && d.p) { let ch = false; for (const k in d.p) if (k in P && Math.abs(P[k] - d.p[k]) > 1e-4) { P[k] = d.p[k]; ch = true; } if (ch) render(); }
   });
   be.addEventListener('ui', s => { if (!s) { applyFactory(0); return; } try { Object.assign(UI, JSON.parse(s)); render(); } catch (e) {} });
@@ -1002,6 +1153,9 @@ function connectPlugin() {
 
 // ===== Frame loop =====
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// per style: shells, fur, fur length, shards, ribbons, mesh, plasma
+const STYLE_MIX = [[1, 1, 1, 1, 0, 0, 0], [0.1, 0.12, 0.6, 0, 1, 0, 0], [0.15, 0.035, 0.5, 0.2, 0, 1, 0], [0.3, 0.8, 3.2, 0, 0, 0, 0], [0.35, 0.5, 0.5, 0, 0, 0, 1]];
+const smix = STYLE_MIX[0].slice();
 const col = { c1: new THREE.Color(UI.c1), c2: new THREE.Color(UI.c2), c3: new THREE.Color(UI.c3), c4: new THREE.Color(UI.c4) }, tmpC = new THREE.Color();
 let last = performance.now(), flowT = 0, spin = 0, cycleHue = 0, loud = 0, knobTick = 0;
 function frame(now) {
@@ -1040,11 +1194,21 @@ function frame(now) {
   ball.scale.setScalar(cur.zoom); ball.rotation.y = spin; ball.rotation.x = cur.tilt + Math.sin(time * 0.2) * 0.1 * m;
   U.uTime.value = flowT; U.uDisp.value = cur.disp; U.uFreq.value = cur.detail; U.uTwist.value = cur.twist; U.uSpikes.value = cur.spikes;
   const flat = P.shape === 5 ? 0.5 : 1;
-  shells.forEach((s, i) => (s.material.uniforms.uOpacity.value = cur.fluff * (0.24 - 0.03 * i) * flat));
-  fur.material.uniforms.uOpacity.value = Math.min(1, cur.spikes * 1.6) * 0.16; fur.visible = cur.spikes > 0.01;
-  shards.material.uniforms.uOpacity.value = cur.shards * 0.55; shards.visible = cur.shards > 0.01;
-  pmat.color.copy(col.c3); pmat.size = 0.025 + cur.particles * 0.07; pmat.opacity = cur.particles; points.visible = cur.particles > 0.01;
-  points.rotation.y = -spin * 0.35; points.rotation.z = time * 0.03 * m;
+  for (let j = 0; j < smix.length; j++) smix[j] = 0;
+  let furW = 0, lenW = 0;
+  MIXIDS.forEach((id, k) => { const w = cur[id], row = STYLE_MIX[k]; for (let j = 0; j < smix.length; j++) if (j !== 2) smix[j] += w * row[j]; furW += w * row[1]; lenW += w * row[1] * row[2]; });
+  smix[2] = furW > 0.001 ? lenW / furW : 1;
+  const [mShell, mFur, mLen, mShard, mRib, mMesh, mPlasma] = smix.map((v, j) => (j === 2 ? v : Math.min(v, 2.5)));
+  shells.forEach((s, i) => { s.material.uniforms.uOpacity.value = cur.fluff * (0.24 - 0.03 * i) * flat * mShell; s.visible = mShell > 0.01; });
+  fur.material.uniforms.uOpacity.value = Math.min(1, cur.spikes * 1.6) * 0.16 * mFur; fur.material.uniforms.uFurLen.value = mLen; fur.visible = cur.spikes > 0.01 && mFur > 0.01;
+  shards.material.uniforms.uOpacity.value = cur.shards * 0.55 * mShard; shards.visible = cur.shards > 0.01 && mShard > 0.01;
+  ribbons.forEach(r => { r.material.uniforms.uOpacity.value = (0.07 + cur.fluff * 0.16) * mRib; r.material.uniforms.uGrid.value = 0.2 + cur.shards; r.visible = mRib > 0.01; });
+  meshSkin.material.uniforms.uOpacity.value = cur.fluff * 0.08 * mMesh; meshSkin.visible = mMesh > 0.01;
+  meshWire.material.uniforms.uOpacity.value = (0.05 + cur.shards * 0.14) * mMesh; meshWire.visible = mMesh > 0.01;
+  plasma.material.uniforms.uOpacity.value = mPlasma; plasma.visible = mPlasma > 0.01;
+  pmat.uniforms.uCol.value.copy(col.c3); pmat.uniforms.uSize.value = 0.04 + cur.particles * 0.09; pmat.uniforms.uOpacity.value = Math.min(1.5, cur.particles * 2.4);
+  pmat.uniforms.uPx.value = renderer.getPixelRatio(); pmat.uniforms.uT.value = time; points.visible = cur.particles > 0.01;
+  points.rotation.y = -spin * 0.25 + time * 0.01 * m; points.rotation.x = time * 0.007 * m;
   const fu = finalMat.uniforms;
   fu.uGlow.value = cur.glow; fu.uExposure.value = cur.bright; fu.uSat.value = cur.sat; fu.uHue.value = hue; fu.uBg.value.copy(col.c4);
   fu.uTransparent.value = recorder && UI.transparent && !recMime.includes('mp4') ? 1 : 0;

@@ -8,7 +8,7 @@
 
 // Parameter model. Must match VIS / SHAPES / NMOD in web/index.html.
 struct SphereVisParam { const char* id; const char* name; float min, max, def; };
-inline constexpr std::array<SphereVisParam, 15> kVisParams {{
+inline constexpr std::array<SphereVisParam, 20> kVisParams {{
     { "zoom",      "Zoom",        0.4f,  2.0f, 1.0f  },
     { "disp",      "Displace",    0.0f,  1.0f, 0.3f  },
     { "spikes",    "Spikes",      0.0f,  1.0f, 0.35f },
@@ -24,6 +24,11 @@ inline constexpr std::array<SphereVisParam, 15> kVisParams {{
     { "bright",    "Brightness",  0.2f,  3.0f, 1.0f  },
     { "hue",       "Hue",         0.0f,  1.0f, 0.0f  },
     { "sat",       "Saturation",  0.0f,  2.0f, 1.0f  },
+    { "xnova",     "Mix Nova",    0.0f,  1.0f, 1.0f  },
+    { "xrib",      "Mix Ribbons", 0.0f,  1.0f, 0.0f  },
+    { "xmesh",     "Mix Mesh",    0.0f,  1.0f, 0.0f  },
+    { "xburst",    "Mix Burst",   0.0f,  1.0f, 0.0f  },
+    { "xplasma",   "Mix Plasma",  0.0f,  1.0f, 0.0f  },
 }};
 
 class SphereAudioProcessor : public juce::AudioProcessor
@@ -58,6 +63,7 @@ public:
 
     // Latest level (0..1) of each modifier's frequency range, same scale as the web preview.
     std::array<float, numMods> getModLevels() const;
+    int getTransportState() const { return transport.load(); } // -1 none, 0 stopped, 1 playing
 
     // Look settings that are not automatable (colours, logo, record settings), as JSON.
     juce::String getUiState() const;
@@ -81,6 +87,7 @@ private:
     int ringPos = 0, sinceLast = 0;
     double sr = 44100.0;
     std::array<std::atomic<float>, numMods> levels {};
+    std::atomic<int> transport { -1 };
     std::array<std::atomic<float>*, numMods> modLo {}, modHi {};
 
     juce::TimeSliceThread writerThread { "Sphere WAV writer" };

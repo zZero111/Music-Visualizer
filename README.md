@@ -2,15 +2,15 @@
 
 An audio-reactive 3D visualizer you put on a track in your DAW.
 
-- **Layered, glowing look:** a soft core of see-through shells, thousands of spike strands, a wireframe shard shell and particles, finished with bloom and filmic tone mapping.
+- **5 mixable styles:** Nova (fluffy shells, spike strands and wireframe shards), Ribbons (silky bands with a fine mesh), Mesh (dense spiky wireframe), Burst (radial explosion) and Plasma (burning star surface). Each has a level knob, so you can blend them, and modifiers can crossfade them with the music. Everything is finished with bloom and filmic tone mapping.
 - **6 shapes:** sphere, cube, diamond, torus, knot and a flat plane (2D terrain).
-- **15 knobs:** zoom, displace, spikes, detail, twist, flow, spin, tilt, fluff, shards, particles, glow, brightness, hue and saturation. Orange rings on each knob show live modulation.
+- **20 knobs:** five style levels, then zoom, displace, spikes, detail, twist, flow, spin, tilt, fluff, shards, particles, glow, brightness, hue and saturation. Orange rings on each knob show live modulation.
 - **8 modifiers.** Each one follows a frequency range you set in Hz (or an LFO) and pushes one knob up or down. Drag a modifier from the dock onto a knob to assign it.
 - **Response curves:** every modifier has a drawable curve (drag sideways for the threshold, up and down for the shape), Linear / Punchy / Smooth / Gate presets, and attack and release times.
 - **Colour:** core, glow, tips and background colours, 14 palettes, Randomize, and colour modes (Static, Cycle, Spectrum, Reactive).
 - **25 factory presets**, unlimited saved presets (shared across projects) and auto-play through presets.
 - **Logo overlay** with position, size and opacity.
-- **Recording** in 16:9, 9:16 or 1:1, at 720p to 4K and 30/60/120 fps, with an optional transparent background (WebM). In the plugin, videos are saved to `Movies/Sphere Visualizer` with a WAV of the track.
+- **Recording** auto-plays: in the preview, Record starts your track from the top and stops when it ends; in the plugin, Record arms and then starts and stops with your DAW's transport. Formats: 16:9, 9:16 or 1:1, at 720p to 4K and 30/60/120 fps, with an optional transparent background (WebM). In the plugin, videos are saved to `Movies/Sphere Visualizer` with a WAV of the track.
 - **Every knob and modifier setting can be automated**, so DAW LFOs, automation lanes and MIDI controllers (through your DAW's MIDI learn) can move it.
 
 ## How it's put together

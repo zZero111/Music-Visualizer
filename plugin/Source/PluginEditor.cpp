@@ -173,6 +173,7 @@ void SphereAudioProcessorEditor::timerCallback()
 
     auto* msg = new juce::DynamicObject();
     msg->setProperty ("b", mods);
+    msg->setProperty ("t", processor.getTransportState());
     msg->setProperty ("p", juce::var (p));
     browser.emitEventIfBrowserIsVisible ("levels", juce::var (msg));
 }

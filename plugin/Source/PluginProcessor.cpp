@@ -87,6 +87,11 @@ void SphereAudioProcessor::prepareToPlay (double sampleRate, int)
 void SphereAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
+    int state = -1;
+    if (auto* ph = getPlayHead())
+        if (auto pos = ph->getPosition())
+            state = pos->getIsPlaying() ? 1 : 0;
+    transport.store (state);
     const int chans = getTotalNumInputChannels();
     for (int i = chans; i < getTotalNumOutputChannels(); ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
