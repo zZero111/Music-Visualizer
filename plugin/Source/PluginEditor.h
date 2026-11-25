@@ -23,6 +23,8 @@ private:
     void onRecStart (const juce::var& payload);
     void onRecChunk (const juce::var& payload);
     void onRecEnd();
+    void onSongLoad();
+    std::unique_ptr<juce::FileChooser> chooser;
     std::optional<juce::WebBrowserComponent::Resource> getResource (const juce::String& url);
 
     static juce::File presetsFile();

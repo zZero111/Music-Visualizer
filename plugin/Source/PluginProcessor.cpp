@@ -22,11 +22,15 @@ SphereAudioProcessor::SphereAudioProcessor()
         modHi[(size_t) i] = params.getRawParameterValue (modId (i + 1, "hi"));
     }
     writerThread.startThread();
+    readThread.startThread();
+    formats.registerBasicFormats(); // WAV, AIFF, FLAC, Ogg, MP3
 }
 
 SphereAudioProcessor::~SphereAudioProcessor()
 {
     stopWavRecording();
+    player.setSource (nullptr);
+    readThread.stopThread (2000);
     writerThread.stopThread (2000);
 }
 
@@ -77,9 +81,11 @@ bool SphereAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) c
     return layouts.getMainInputChannelSet() == out;
 }
 
-void SphereAudioProcessor::prepareToPlay (double sampleRate, int)
+void SphereAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     sr = sampleRate;
+    blockSize = samplesPerBlock;
+    player.prepareToPlay (samplesPerBlock, sampleRate);
     ring.fill (0.0f);
     ringPos = sinceLast = 0;
 }
@@ -92,9 +98,17 @@ void SphereAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         if (auto pos = ph->getPosition())
             state = pos->getIsPlaying() ? 1 : 0;
     transport.store (state);
-    const int chans = getTotalNumInputChannels();
+    int chans = getTotalNumInputChannels();
     for (int i = chans; i < getTotalNumOutputChannels(); ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
+
+    // Standalone app with a song loaded: the song replaces the input and plays to the speakers.
+    if (songLoaded.load())
+    {
+        buffer.clear();
+        player.getNextAudioBlock (juce::AudioSourceChannelInfo (buffer));
+        chans = buffer.getNumChannels();
+    }
 
     {
         const juce::ScopedTryLock sl (writerLock);
@@ -119,6 +133,30 @@ void SphereAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             analyse();
         }
     }
+}
+
+bool SphereAudioProcessor::loadSong (const juce::File& file)
+{
+    std::unique_ptr<juce::AudioFormatReader> reader (formats.createReaderFor (file));
+    if (reader == nullptr)
+        return false;
+    const double fileRate = reader->sampleRate;
+    auto src = std::make_unique<juce::AudioFormatReaderSource> (reader.release(), true);
+    player.stop();
+    player.setSource (src.get(), 65536, &readThread, fileRate, 2);
+    songSource = std::move (src);
+    songName = file.getFileName();
+    songLoaded = true;
+    return true;
+}
+
+void SphereAudioProcessor::playSong (bool fromStart)
+{
+    if (! songLoaded.load())
+        return;
+    if (fromStart || player.hasStreamFinished())
+        player.setPosition (0.0);
+    player.start();
 }
 
 void SphereAudioProcessor::analyse()

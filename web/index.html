@@ -131,7 +131,8 @@ input[type=color] { width: 100%; height: 34px; border: 1px solid var(--line); bo
 .check { display: inline-flex; gap: 8px; align-items: center; font-size: 12.5px; cursor: pointer; }
 .note { font-size: 12px; line-height: 1.55; color: var(--dim); margin: 0; }
 .recbig { justify-content: center; padding: 11px; font-size: 14px; }
-.plugin-only { display: none !important; }
+.plugin-only, .sa-only { display: none !important; }
+body.standalone .sa-only { display: inline-flex !important; }
 body.in-plugin .web-only { display: none !important; }
 body.in-plugin .plugin-only { display: revert !important; }
 @media (max-width: 760px) {
@@ -153,6 +154,8 @@ body.in-plugin .plugin-only { display: revert !important; }
       <button class="btn primary web-only" id="play" type="button">&#9654; Play demo</button>
       <label class="btn web-only" for="file">Load audio</label>
       <input id="file" type="file" accept="audio/*" hidden>
+      <button class="btn primary sa-only" id="saPlay" type="button">&#9654; Play</button>
+      <button class="btn sa-only" id="saLoad" type="button">Load song</button>
       <button class="btn rec" id="rec" type="button"><span class="dot"></span><span id="rect">Rec</span></button>
       <button class="btn" id="hide" type="button" aria-pressed="false" aria-label="Hide controls">&#9707;</button>
     </div>
@@ -226,7 +229,8 @@ body.in-plugin .plugin-only { display: revert !important; }
         <label class="check"><input type="checkbox" id="transp"> Transparent background (WebM)</label>
         <button class="btn rec recbig" id="rec2" type="button"><span class="dot"></span><span id="rect2">Start recording</span></button>
         <p class="note web-only">Record starts your track (or the demo) from the beginning and stops when a loaded track ends. The recording includes the audio you're playing. High resolutions and frame rates depend on your graphics card; if the video stutters, step down one.</p>
-        <p class="note plugin-only">Press Record, then play your DAW: recording starts and stops with the transport. Videos are saved to Movies/Sphere Visualizer with a matching WAV of the track.</p>
+        <p class="note sa-only" style="display:block">In the standalone app, load a song with Load song: Record plays it from the start and stops when it ends. Without a song it records whatever comes in on your audio input.</p>
+        <p class="note plugin-only">In a DAW, press Record, then play your DAW: recording starts and stops with the transport. Videos are saved to Movies/Sphere Visualizer with a matching WAV of the track.</p>
       </div>
     </div>
     <div class="dock" id="dock"></div>
@@ -1133,8 +1137,20 @@ function ensurePlaying() { // start the audio from the top so the recording has 
   } else if (mode !== 'demo') { if (!demo) demo = makeDemo(); demo.start(); mode = 'demo'; }
   playBtn.dataset.paused = ''; playBtn.innerHTML = '&#10074;&#10074; Pause';
 }
+let songReady = false, songState = null, recFromSong = false, recSawPlay = false;
+const mmss = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
+$('saLoad').addEventListener('click', () => juce() && juce().emitEvent('song-load', {}));
+$('saPlay').addEventListener('click', () => {
+  if (!juce()) return;
+  if (!songReady) { juce().emitEvent('song-load', {}); return; }
+  if (songState && songState.playing) juce().emitEvent('song-pause', {}); else juce().emitEvent('song-play', { fromStart: false });
+});
 function startRec() {
   if (recLabelBusy()) return;
+  if (document.body.classList.contains('standalone') && songReady) {
+    recFromSong = true; recSawPlay = false; juce().emitEvent('song-play', { fromStart: true }); beginRec(); return;
+  }
+  recFromSong = false;
   if (inPlugin() && hostTransport === 0) { armed = true; recLabel(true, 'Armed'); setStatus('Armed. Recording starts when you press play in your DAW, and stops when you stop.'); return; }
   ensurePlaying();
   beginRec();
@@ -1181,7 +1197,7 @@ async function finishRec(ext) {
   try { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setStatus('Saved ' + name + '.'); }
   catch (e) { setStatus('Could not save the recording here.'); }
 }
-const toggleRec = () => { if (armed) { armed = false; recLabel(false); setStatus('Recording cancelled.'); } else if (recorder) { if (recorder.state !== 'inactive') recorder.stop(); } else startRec(); };
+const toggleRec = () => { if (recorder && recFromSong && juce()) juce().emitEvent('song-pause', {}); if (armed) { armed = false; recLabel(false); setStatus('Recording cancelled.'); } else if (recorder) { if (recorder.state !== 'inactive') recorder.stop(); } else startRec(); };
 $('rec').addEventListener('click', toggleRec); $('rec2').addEventListener('click', toggleRec);
 
 // ===== Plugin bridge =====
@@ -1191,6 +1207,12 @@ function connectPlugin() {
   const be = juce();
   be.addEventListener('levels', d => {
     if (d && d.b) for (let i = 0; i < NMOD; i++) raw[i] = d.b[i] || 0;
+    if (d && d.s) {
+      songState = d.s;
+      $('saPlay').innerHTML = d.s.playing ? '&#10074;&#10074; Pause' : '&#9654; Play';
+      if (d.s.playing) { recSawPlay = true; if (!recorder) setStatus(mmss(d.s.pos) + ' / ' + mmss(d.s.len)); }
+      if (recorder && recFromSong && recSawPlay && d.s.ended && recorder.state !== 'inactive') { recFromSong = false; recorder.stop(); }
+    }
     if (d && 't' in d) {
       const was = hostPlaying; hostTransport = d.t; hostPlaying = d.t === 1;
       if (armed && hostPlaying) { armed = false; beginRec(); }
@@ -1200,6 +1222,11 @@ function connectPlugin() {
   });
   be.addEventListener('ui', s => { if (!s) { applyFactory(0); return; } try { Object.assign(UI, JSON.parse(s)); render(); } catch (e) {} });
   be.addEventListener('presets', s => { try { userPresets = JSON.parse(s) || []; render(); } catch (e) {} });
+  be.addEventListener('host', d => { if (d && d.standalone) { document.body.classList.add('standalone'); setStatus('Load a song, or play audio into your input device.'); } });
+  be.addEventListener('song', d => {
+    if (d && d.ok) { songReady = true; setStatus('Loaded ' + d.name + ' (' + mmss(d.length || 0) + '). Press Play, or Record to make a video of the whole song.'); }
+    else setStatus('Could not open that file. Try WAV, MP3, AIFF, FLAC or Ogg.');
+  });
   be.addEventListener('rec-saved', d => setStatus(d && d.path ? 'Saved to ' + d.path : 'Could not save the recording.'));
   be.emitEvent('ready', {});
 }

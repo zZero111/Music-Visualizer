@@ -53,7 +53,7 @@ Install-Package Microsoft.Web.WebView2 -Scope CurrentUser -RequiredVersion 1.0.1
 - **Windows VST3:** copy `Sphere Visualizer.vst3` to `C:\Program Files\Common Files\VST3`
 - **Mac VST3:** copy it to `~/Library/Audio/Plug-Ins/VST3`
 - **Mac AU (Logic, GarageBand):** copy `Sphere Visualizer.component` to `~/Library/Audio/Plug-Ins/Components`
-- **Standalone:** runs on its own and listens to your audio input
+- **Standalone app** (`Sphere Visualizer.exe` / `Sphere Visualizer.app`): runs without a DAW. Use **Load song** to open a WAV, MP3, AIFF, FLAC or Ogg file, then press **Record**: the song plays from the start, the video and a matching WAV are written to `Videos/Sphere Visualizer` as it goes, and recording stops when the song ends. This is the best way to make long 4K videos. Without a song it reacts to your audio input (pick it under Options; Windows' Stereo Mix or a virtual cable lets it hear anything your PC plays).
 
 Rescan plugins in your DAW, then put Sphere Visualizer on any track or on the master. It doesn't change the sound.
 

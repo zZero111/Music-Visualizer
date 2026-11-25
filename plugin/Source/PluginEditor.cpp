@@ -35,6 +35,9 @@ SphereAudioProcessorEditor::SphereAudioProcessorEditor (SphereAudioProcessor& p)
                  .withEventListener ("rec-start", [this] (const juce::var& v) { onRecStart (v); })
                  .withEventListener ("rec-chunk", [this] (const juce::var& v) { onRecChunk (v); })
                  .withEventListener ("rec-end", [this] (const juce::var&) { onRecEnd(); })
+                 .withEventListener ("song-load", [this] (const juce::var&) { onSongLoad(); })
+                 .withEventListener ("song-play", [this] (const juce::var& v) { processor.playSong ((bool) v["fromStart"]); })
+                 .withEventListener ("song-pause", [this] (const juce::var&) { processor.pauseSong(); })
                  .withEventListener ("log", [] (const juce::var& v) { juce::Logger::outputDebugString ("[page] " + v.toString()); }))
 {
     addAndMakeVisible (browser);
@@ -105,10 +108,32 @@ std::optional<juce::WebBrowserComponent::Resource> SphereAudioProcessorEditor::g
 void SphereAudioProcessorEditor::onReady()
 {
     pageReady = true;
+    auto* host = new juce::DynamicObject();
+    host->setProperty ("standalone", processor.isStandalone());
+    browser.emitEventIfBrowserIsVisible ("host", juce::var (host));
     browser.emitEventIfBrowserIsVisible ("ui", processor.getUiState()); // empty for a new instance
     const auto presets = presetsFile();
     if (presets.existsAsFile())
         browser.emitEventIfBrowserIsVisible ("presets", presets.loadFileAsString());
+}
+
+void SphereAudioProcessorEditor::onSongLoad()
+{
+    chooser = std::make_unique<juce::FileChooser> ("Choose a song", juce::File::getSpecialLocation (juce::File::userMusicDirectory),
+                                                   "*.wav;*.mp3;*.aif;*.aiff;*.flac;*.ogg");
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+        [this] (const juce::FileChooser& fc)
+        {
+            const auto file = fc.getResult();
+            if (file == juce::File())
+                return;
+            auto* info = new juce::DynamicObject();
+            const bool ok = processor.loadSong (file);
+            info->setProperty ("ok", ok);
+            info->setProperty ("name", file.getFileName());
+            info->setProperty ("length", processor.getSongLength());
+            browser.emitEventIfBrowserIsVisible ("song", juce::var (info));
+        });
 }
 
 void SphereAudioProcessorEditor::onParamFromPage (const juce::var& payload)
@@ -173,6 +198,15 @@ void SphereAudioProcessorEditor::timerCallback()
 
     auto* msg = new juce::DynamicObject();
     msg->setProperty ("b", mods);
+    if (processor.hasSong())
+    {
+        auto* song = new juce::DynamicObject();
+        song->setProperty ("playing", processor.isSongPlaying());
+        song->setProperty ("ended", processor.hasSongFinished());
+        song->setProperty ("pos", processor.getSongPosition());
+        song->setProperty ("len", processor.getSongLength());
+        msg->setProperty ("s", juce::var (song));
+    }
     msg->setProperty ("t", processor.getTransportState());
     msg->setProperty ("p", juce::var (p));
     browser.emitEventIfBrowserIsVisible ("levels", juce::var (msg));

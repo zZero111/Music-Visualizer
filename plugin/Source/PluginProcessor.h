@@ -2,6 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_formats/juce_audio_formats.h>
+#include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_dsp/juce_dsp.h>
 #include <array>
 #include <atomic>
@@ -40,7 +41,7 @@ public:
     ~SphereAudioProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override {}
+    void releaseResources() override { player.releaseResources(); }
     bool isBusesLayoutSupported (const BusesLayout&) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
@@ -69,7 +70,19 @@ public:
     juce::String getUiState() const;
     void setUiState (const juce::String&);
 
-    // Records the plugin's input to a WAV file alongside a video recording.
+    // Song playback for the standalone app (in a DAW the host supplies the audio).
+    bool isStandalone() const { return wrapperType == wrapperType_Standalone; }
+    bool loadSong (const juce::File&);           // message thread
+    void playSong (bool fromStart);
+    void pauseSong() { player.stop(); }
+    bool hasSong() const { return songLoaded.load(); }
+    bool isSongPlaying() const { return player.isPlaying(); }
+    bool hasSongFinished() const { return songLoaded.load() && ! player.isPlaying() && player.hasStreamFinished(); }
+    double getSongPosition() const { return player.getCurrentPosition(); }
+    double getSongLength() const { return player.getLengthInSeconds(); }
+    juce::String getSongName() const { return songName; }
+
+    // Records the plugin's audio to a WAV file alongside a video recording.
     void startWavRecording (const juce::File&);
     void stopWavRecording();
 
@@ -89,6 +102,14 @@ private:
     std::array<std::atomic<float>, numMods> levels {};
     std::atomic<int> transport { -1 };
     std::array<std::atomic<float>*, numMods> modLo {}, modHi {};
+
+    juce::AudioFormatManager formats;
+    juce::TimeSliceThread readThread { "Sphere song reader" };
+    juce::AudioTransportSource player;
+    std::unique_ptr<juce::AudioFormatReaderSource> songSource;
+    std::atomic<bool> songLoaded { false };
+    juce::String songName;
+    int blockSize = 512;
 
     juce::TimeSliceThread writerThread { "Sphere WAV writer" };
     std::unique_ptr<juce::AudioFormatWriter::ThreadedWriter> threadedWriter;
