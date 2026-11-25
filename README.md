@@ -10,7 +10,8 @@ An audio-reactive 3D visualizer you put on a track in your DAW.
 - **Colour:** core, glow, tips and background colours, 14 palettes, Randomize, and colour modes (Static, Cycle, Spectrum, Reactive).
 - **25 factory presets**, unlimited saved presets (shared across projects) and auto-play through presets.
 - **Logo overlay** with position, size and opacity.
-- **Recording** auto-plays: in the preview, Record starts your track from the top and stops when it ends; in the plugin, Record arms and then starts and stops with your DAW's transport. Formats: 16:9, 9:16 or 1:1, at 720p to 4K and 30/60/120 fps, with an optional transparent background (WebM). In the plugin, videos are saved to `Movies/Sphere Visualizer` with a WAV of the track.
+- **Render song to video** (preview with a loaded file, or the standalone app): frame-by-frame, hardware-encoded MP4 with audio; no dropped frames at any resolution.
+- **Record live** auto-plays: in the preview, Record starts your track from the top and stops when it ends; in the plugin, Record arms and then starts and stops with your DAW's transport. Formats: 16:9, 9:16 or 1:1, at 720p to 4K and 30/60/120 fps, with an optional transparent background (WebM). In the plugin, videos are saved to `Movies/Sphere Visualizer` with a WAV of the track.
 - **Every knob and modifier setting can be automated**, so DAW LFOs, automation lanes and MIDI controllers (through your DAW's MIDI learn) can move it.
 
 ## How it's put together
@@ -53,7 +54,7 @@ Install-Package Microsoft.Web.WebView2 -Scope CurrentUser -RequiredVersion 1.0.1
 - **Windows VST3:** copy `Sphere Visualizer.vst3` to `C:\Program Files\Common Files\VST3`
 - **Mac VST3:** copy it to `~/Library/Audio/Plug-Ins/VST3`
 - **Mac AU (Logic, GarageBand):** copy `Sphere Visualizer.component` to `~/Library/Audio/Plug-Ins/Components`
-- **Standalone app** (`Sphere Visualizer.exe` / `Sphere Visualizer.app`): runs without a DAW. Use **Load song** to open a WAV, MP3, AIFF, FLAC or Ogg file, then press **Record**: the song plays from the start, the video and a matching WAV are written to `Videos/Sphere Visualizer` as it goes, and recording stops when the song ends. This is the best way to make long 4K videos. Without a song it reacts to your audio input (pick it under Options; Windows' Stereo Mix or a virtual cable lets it hear anything your PC plays).
+- **Standalone app** (`Sphere Visualizer.exe` / `Sphere Visualizer.app`): runs without a DAW. Use **Load song** to open a WAV, MP3, Opus, AIFF, FLAC or Ogg file. On the Export tab, **Render song to video** draws every frame at exact time steps and encodes with your graphics card (WebCodecs), so 4K 60 never stutters, and saves one MP4 with the audio inside to `Videos/Sphere Visualizer`. **Record live** captures in real time instead (video plus a separate WAV). Without a song it reacts to your audio input (pick it under Options; Windows' Stereo Mix or a virtual cable lets it hear anything your PC plays).
 
 Rescan plugins in your DAW, then put Sphere Visualizer on any track or on the master. It doesn't change the sound.
 

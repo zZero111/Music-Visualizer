@@ -32,11 +32,21 @@ SphereAudioProcessorEditor::SphereAudioProcessorEditor (SphereAudioProcessor& p)
                  .withEventListener ("ready", [this] (const juce::var&) { onReady(); })
                  .withEventListener ("ui", [this] (const juce::var& v) { processor.setUiState (v.toString()); })
                  .withEventListener ("presets", [] (const juce::var& v) { presetsFile().replaceWithText (v.toString()); })
-                 .withEventListener ("rec-start", [this] (const juce::var& v) { onRecStart (v); })
+                 .withEventListener ("rec-start", [this] (const juce::var& v) { onRecStart (v, true); })
                  .withEventListener ("rec-chunk", [this] (const juce::var& v) { onRecChunk (v); })
                  .withEventListener ("rec-end", [this] (const juce::var&) { onRecEnd(); })
                  .withEventListener ("song-load", [this] (const juce::var&) { onSongLoad(); })
                  .withEventListener ("song-play", [this] (const juce::var& v) { processor.playSong ((bool) v["fromStart"]); })
+                 .withEventListener ("song-pcm", [this] (const juce::var&) { onSongPcm(); })
+                 .withEventListener ("render-start", [this] (const juce::var& v) { onRecStart (v, false); })
+                 .withEventListener ("render-chunk", [this] (const juce::var& v)
+                 {
+                     if (videoOut == nullptr) return;
+                     juce::MemoryOutputStream decoded;
+                     if (juce::Base64::convertFromBase64 (decoded, v["d"].toString()) && videoOut->setPosition ((juce::int64) (double) v["pos"]))
+                         videoOut->write (decoded.getData(), decoded.getDataSize());
+                 })
+                 .withEventListener ("render-end", [this] (const juce::var&) { onRecEnd(); })
                  .withEventListener ("song-pause", [this] (const juce::var&) { processor.pauseSong(); })
                  .withEventListener ("log", [] (const juce::var& v) { juce::Logger::outputDebugString ("[page] " + v.toString()); }))
 {
@@ -82,6 +92,12 @@ std::optional<juce::WebBrowserComponent::Resource> SphereAudioProcessorEditor::g
     if (path.contains ("://"))
         path = path.fromFirstOccurrenceOf ("://", false, false).fromFirstOccurrenceOf ("/", true, false);
 
+    if (path.endsWith ("mp4-muxer.js"))
+    {
+        const auto* d = reinterpret_cast<const std::byte*> (BinaryData::mp4muxer_js);
+        return juce::WebBrowserComponent::Resource { { d, d + BinaryData::mp4muxer_jsSize }, "text/javascript" };
+    }
+
     if (path.endsWith ("three.min.js"))
     {
         const auto* d = reinterpret_cast<const std::byte*> (BinaryData::three_min_js);
@@ -93,7 +109,8 @@ std::optional<juce::WebBrowserComponent::Resource> SphereAudioProcessorEditor::g
         // web/index.html is written as a page fragment (the browser preview wraps it); wrap it here
         // and load three.js from inside the plugin instead of the CDN so it works offline.
         auto body = juce::String::fromUTF8 (BinaryData::index_html, BinaryData::index_htmlSize)
-                        .replace ("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js", "three.min.js");
+                        .replace ("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js", "three.min.js")
+                        .replace ("https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js", "mp4-muxer.js");
         auto html = "<!doctype html><html><head><meta charset=\"utf-8\">"
                     "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
                     "<style>body{margin:0}</style>"
@@ -120,7 +137,7 @@ void SphereAudioProcessorEditor::onReady()
 void SphereAudioProcessorEditor::onSongLoad()
 {
     chooser = std::make_unique<juce::FileChooser> ("Choose a song", juce::File::getSpecialLocation (juce::File::userMusicDirectory),
-                                                   "*.wav;*.mp3;*.aif;*.aiff;*.flac;*.ogg");
+                                                   "*.wav;*.mp3;*.opus;*.aif;*.aiff;*.flac;*.ogg");
     chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
         [this] (const juce::FileChooser& fc)
         {
@@ -134,6 +151,38 @@ void SphereAudioProcessorEditor::onSongLoad()
             info->setProperty ("length", processor.getSongLength());
             browser.emitEventIfBrowserIsVisible ("song", juce::var (info));
         });
+}
+
+void SphereAudioProcessorEditor::onSongPcm()
+{
+    juce::AudioBuffer<float> buf;
+    double rate = 0;
+    auto* end = new juce::DynamicObject();
+    if (! processor.decodeSong (buf, rate))
+    {
+        end->setProperty ("ok", false);
+        browser.emitEventIfBrowserIsVisible ("song-pcm-end", juce::var (end));
+        return;
+    }
+    const int n = buf.getNumSamples(), chunk = 262144;
+    std::vector<juce::int16> tmp;
+    for (int s = 0; s < n; s += chunk)
+    {
+        const int len = juce::jmin (chunk, n - s);
+        tmp.resize ((size_t) len * 2);
+        for (int i = 0; i < len; ++i)
+        {
+            tmp[(size_t) i * 2]     = (juce::int16) juce::jlimit (-32768, 32767, juce::roundToInt (buf.getSample (0, s + i) * 32767.0f));
+            tmp[(size_t) i * 2 + 1] = (juce::int16) juce::jlimit (-32768, 32767, juce::roundToInt (buf.getSample (1, s + i) * 32767.0f));
+        }
+        auto* part = new juce::DynamicObject();
+        part->setProperty ("d", juce::Base64::toBase64 (tmp.data(), tmp.size() * sizeof (juce::int16)));
+        browser.emitEventIfBrowserIsVisible ("song-pcm-chunk", juce::var (part));
+    }
+    end->setProperty ("ok", true);
+    end->setProperty ("rate", rate);
+    end->setProperty ("frames", n);
+    browser.emitEventIfBrowserIsVisible ("song-pcm-end", juce::var (end));
 }
 
 void SphereAudioProcessorEditor::onParamFromPage (const juce::var& payload)
@@ -150,14 +199,15 @@ void SphereAudioProcessorEditor::onParamFromPage (const juce::var& payload)
     }
 }
 
-void SphereAudioProcessorEditor::onRecStart (const juce::var& payload)
+void SphereAudioProcessorEditor::onRecStart (const juce::var& payload, bool withWav)
 {
     onRecEnd();
     const auto ext = payload["ext"].toString() == "mp4" ? "mp4" : "webm";
     const auto base = "Sphere " + juce::Time::getCurrentTime().formatted ("%Y-%m-%d %H-%M-%S");
     videoFile = recordingsFolder().getChildFile (base + "." + ext);
     videoOut = videoFile.createOutputStream();
-    processor.startWavRecording (recordingsFolder().getChildFile (base + ".wav"));
+    if (withWav)
+        processor.startWavRecording (recordingsFolder().getChildFile (base + ".wav"));
 }
 
 void SphereAudioProcessorEditor::onRecChunk (const juce::var& payload)

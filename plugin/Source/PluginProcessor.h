@@ -81,6 +81,7 @@ public:
     double getSongPosition() const { return player.getCurrentPosition(); }
     double getSongLength() const { return player.getLengthInSeconds(); }
     juce::String getSongName() const { return songName; }
+    bool decodeSong (juce::AudioBuffer<float>& out, double& rate); // whole song, for frame-by-frame rendering
 
     // Records the plugin's audio to a WAV file alongside a video recording.
     void startWavRecording (const juce::File&);
@@ -109,6 +110,7 @@ private:
     std::unique_ptr<juce::AudioFormatReaderSource> songSource;
     std::atomic<bool> songLoaded { false };
     juce::String songName;
+    juce::File songFile;
     int blockSize = 512;
 
     juce::TimeSliceThread writerThread { "Sphere WAV writer" };

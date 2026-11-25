@@ -153,7 +153,7 @@ body.in-plugin .plugin-only { display: revert !important; }
       <div class="pnav"><button id="prev" type="button" aria-label="Previous preset">&lsaquo;</button><span id="pname">Supernova</span><button id="next" type="button" aria-label="Next preset">&rsaquo;</button></div>
       <button class="btn primary web-only" id="play" type="button">&#9654; Play demo</button>
       <label class="btn web-only" for="file">Load audio</label>
-      <input id="file" type="file" accept="audio/*" hidden>
+      <input id="file" type="file" accept="audio/*,.opus,.ogg,.oga,.webm,.flac,.m4a" hidden>
       <button class="btn primary sa-only" id="saPlay" type="button">&#9654; Play</button>
       <button class="btn sa-only" id="saLoad" type="button">Load song</button>
       <button class="btn rec" id="rec" type="button"><span class="dot"></span><span id="rect">Rec</span></button>
@@ -227,7 +227,9 @@ body.in-plugin .plugin-only { display: revert !important; }
         <section class="sec"><h3>Frame rate</h3><div class="seg" id="rfps"></div></section>
         <section class="sec"><h3>Quality</h3><div class="seg" id="rqual"></div><p class="note" id="rest"></p></section>
         <label class="check"><input type="checkbox" id="transp"> Transparent background (WebM)</label>
-        <button class="btn rec recbig" id="rec2" type="button"><span class="dot"></span><span id="rect2">Start recording</span></button>
+        <button class="btn primary recbig" id="renderBtn" type="button">Render song to video</button>
+        <p class="note">Render draws every frame at exact time steps and encodes with your graphics card, so the video never stutters, whatever the resolution. It saves one MP4 with the song's audio inside. It needs a loaded song and can take longer than the song itself.</p>
+        <button class="btn rec recbig" id="rec2" type="button"><span class="dot"></span><span id="rect2">Record live</span></button>
         <p class="note web-only">Record starts your track (or the demo) from the beginning and stops when a loaded track ends. The recording includes the audio you're playing. High resolutions and frame rates depend on your graphics card; if the video stutters, step down one.</p>
         <p class="note sa-only" style="display:block">In the standalone app, load a song with Load song: Record plays it from the start and stops when it ends. Without a song it records whatever comes in on your audio input.</p>
         <p class="note plugin-only">In a DAW, press Record, then play your DAW: recording starts and stops with the transport. Videos are saved to Movies/Sphere Visualizer with a matching WAV of the track.</p>
@@ -238,6 +240,7 @@ body.in-plugin .plugin-only { display: revert !important; }
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
 <script>
 (() => {
 'use strict';
@@ -975,13 +978,14 @@ function renderFrame() {
   const fu = finalMat.uniforms; fu.tScene.value = sceneRT.texture;
   for (let i = 0; i < LEVELS; i++) fu['tB' + i].value = rtA[i].texture;
   pass(finalMat, null);
-  if (recorder && UI.logo && logoTex) drawLogoGL();
+  if ((recorder || rendering) && recDims && UI.logo && logoTex) drawLogoGL();
 }
 // logo drawn on the GPU while recording, so frames never have to be copied off the GPU
 const ovScene = new THREE.Scene(), ovCam = new THREE.OrthographicCamera(0, 1, 1, 0, -1, 1);
 let logoTex = null, logoTexSrc = null;
 const logoMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false }));
 ovScene.add(logoMesh);
+function prepLogoTex() { if (UI.logo && logoImg.naturalWidth && logoTexSrc !== UI.logo) { if (logoTex) logoTex.dispose(); logoTex = new THREE.Texture(logoImg); logoTex.needsUpdate = true; logoTexSrc = UI.logo; } }
 function drawLogoGL() {
   const W = recDims[0], H = recDims[1], r = logoRect(W, H); if (!r) return;
   ovCam.right = W; ovCam.top = H; ovCam.updateProjectionMatrix();
@@ -1084,10 +1088,11 @@ $('file').addEventListener('change', e => {
   ensureCtx(); actx.resume();
   if (demo && mode === 'demo') demo.stop();
   if (!audioEl) { audioEl = new Audio(); audioEl.loop = true; actx.createMediaElementSource(audioEl).connect(analyser); }
+  loadedFile = f;
   audioEl.src = URL.createObjectURL(f);
   audioEl.onended = () => { if (recorder && recorder.state !== 'inactive') recorder.stop(); mode = 'idle'; playBtn.innerHTML = '&#9654; Play file'; playBtn.dataset.paused = 'file'; };
   audioEl.play().then(() => { mode = 'file'; playBtn.dataset.paused = ''; playBtn.innerHTML = '&#10074;&#10074; Pause'; setStatus('Playing ' + f.name); })
-    .catch(() => setStatus('That file could not be played. Try an MP3, WAV or M4A.'));
+    .catch(() => setStatus('That file could not be played. Try MP3, WAV, Opus or M4A.'));
 });
 
 // ===== Recording =====
@@ -1124,8 +1129,8 @@ function pickMime(alpha) {
   const list = alpha ? ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'] : ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
   return list.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
 }
-function b64(buf) { let s = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
-function recLabel(on, t) { $('rec').classList.toggle('on', on); $('rec2').classList.toggle('on', on); $('rect').textContent = on ? t : 'Rec'; $('rect2').textContent = on ? 'Stop recording ' + t : 'Start recording'; }
+function b64(buf) { let s = ''; const u = buf instanceof Uint8Array ? buf : new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+function recLabel(on, t) { $('rec').classList.toggle('on', on); $('rec2').classList.toggle('on', on); $('rect').textContent = on ? t : 'Rec'; $('rect2').textContent = on ? 'Stop recording ' + t : 'Record live'; }
 const recLabelBusy = () => $('rect').textContent === '...';
 let armed = false, hostPlaying = false, hostTransport = -1; // -1 = no transport (standalone app)
 function ensurePlaying() { // start the audio from the top so the recording has the whole track
@@ -1163,7 +1168,7 @@ async function beginRec() {
   const note = plan.w !== want[0] || plan.fps !== FPS[UI.recFps]
     ? ' (your ' + (displayHz && FPS[UI.recFps] > displayHz * 1.1 ? 'screen runs at ' + Math.round(displayHz) + ' Hz' : 'video encoder cannot do ' + want[0] + 'x' + want[1] + ' at ' + FPS[UI.recFps] + ' fps') + ', so this is the best it supports)' : '';
   recDims = [plan.w, plan.h]; resize();
-  if (UI.logo && logoImg.naturalWidth && logoTexSrc !== UI.logo) { if (logoTex) logoTex.dispose(); logoTex = new THREE.Texture(logoImg); logoTex.needsUpdate = true; logoTexSrc = UI.logo; }
+  prepLogoTex();
   const stream = canvas.captureStream(plan.fps);
   if (recDest && !inPlugin()) recDest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
   recBytes = 0; recMemWarned = false; recError = ''; recPerf = { n: 0, t: 0, warned: false, fps: plan.fps };
@@ -1189,14 +1194,130 @@ async function finishRec(ext) {
   if (juce()) { await recSeq; juce().emitEvent('rec-end', {}); setStatus('Saving...'); return; }
   const blob = new Blob(recChunks, { type: recMime }); recChunks = [];
   if (!blob.size) { setStatus(recError || 'Nothing was recorded. Try a lower resolution or frame rate.'); return; }
+  await saveBlob(blob, ext, recError ? 'Saved what was recorded. ' + recError : '');
+}
+async function saveBlob(blob, ext, msg) {
   const name = 'sphere-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + ext;
   try {
     const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
-    if (dl) { await dl.save({ filename: name, data: blob }); setStatus(recError ? 'Saved what was recorded. ' + recError : 'Saved ' + name + '.'); return; }
-  } catch (e) { if (e && e.code === 'declined') { setStatus('Recording discarded.'); return; } }
-  try { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setStatus('Saved ' + name + '.'); }
-  catch (e) { setStatus('Could not save the recording here.'); }
+    if (dl) { await dl.save({ filename: name, data: blob }); setStatus(msg || 'Saved ' + name + '.'); return; }
+  } catch (e) { if (e && e.code === 'declined') { setStatus('Video discarded.'); return; } }
+  try { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setStatus(msg || 'Saved ' + name + '.'); }
+  catch (e) { setStatus('Could not save the video here.'); }
 }
+
+// ===== Render to video, frame by frame =====
+// Exact 1/fps time steps, hardware encoding through WebCodecs, audio muxed into one MP4. Never drops frames.
+let loadedFile = null, rendering = null, pcmParts = [], pcmWait = null;
+function fftInPlace(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) { let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
+    for (let i = 0; i < n; i += len) { let cr = 1, ci = 0;
+      for (let k = 0; k < len / 2; k++) { const a = i + k, b = a + len / 2, tr = re[b] * cr - im[b] * ci, ti = re[b] * ci + im[b] * cr;
+        re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti; const nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr; } }
+  }
+}
+// Same measurement as the live analyser: Blackman window, 4096-point FFT, -90..-10 dB mapped to 0..1, averaged per band.
+async function analyseSong(L, R, rate, fps, frames) {
+  const N = 4096, win = new Float32Array(N), re = new Float32Array(N), im = new Float32Array(N), mag = new Float32Array(N / 2), out = new Float32Array(frames * NMOD);
+  for (let i = 0; i < N; i++) win[i] = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / N) + 0.08 * Math.cos(4 * Math.PI * i / N);
+  const hz = rate / N, bands = [];
+  for (let i = 1; i <= NMOD; i++) { const lo = Math.min(mp(i, 'lo'), mp(i, 'hi')), hi = Math.max(mp(i, 'lo'), mp(i, 'hi')); const a = Math.max(1, Math.floor(lo / hz)); bands.push([a, Math.min(N / 2 - 1, Math.max(a, Math.ceil(hi / hz)))]); }
+  for (let f = 0; f < frames; f++) {
+    const end = Math.round((f + 1) / fps * rate), start = end - N;
+    for (let i = 0; i < N; i++) { const k = start + i; re[i] = k >= 0 && k < L.length ? (L[k] + R[k]) * 0.5 * win[i] : 0; im[i] = 0; }
+    fftInPlace(re, im);
+    for (let k = 0; k < N / 2; k++) { const m = Math.hypot(re[k], im[k]) / N; mag[k] = clamp((20 * Math.log10(m + 1e-12) + 90) / 80, 0, 1); }
+    for (let b = 0; b < NMOD; b++) { let sum = 0; for (let k = bands[b][0]; k <= bands[b][1]; k++) sum += mag[k]; out[f * NMOD + b] = sum / (bands[b][1] - bands[b][0] + 1); }
+    if (f % 400 === 0) { setStatus('Analysing the song... ' + Math.round(f / frames * 100) + '%'); await new Promise(r => setTimeout(r, 0)); if (rendering && rendering.cancel) return null; }
+  }
+  return out;
+}
+function getPluginPcm() { // the standalone app decodes the song (any format it can play) and streams it here as 16-bit stereo
+  return new Promise(res => { pcmParts = []; pcmWait = res; juce().emitEvent('song-pcm', {}); });
+}
+function onPcmEnd(d) {
+  if (!pcmWait) return; const done = pcmWait; pcmWait = null;
+  if (!d || !d.ok) { done(null); return; }
+  const total = d.frames, L = new Float32Array(total), R = new Float32Array(total); let o = 0;
+  for (const part of pcmParts) { const bin = atob(part), n = bin.length >> 2;
+    for (let i = 0; i < n && o < total; i++, o++) { const p = i * 4; let l = bin.charCodeAt(p) | (bin.charCodeAt(p + 1) << 8), r = bin.charCodeAt(p + 2) | (bin.charCodeAt(p + 3) << 8);
+      if (l > 32767) l -= 65536; if (r > 32767) r -= 65536; L[o] = l / 32768; R[o] = r / 32768; } }
+  pcmParts = []; done({ L, R, rate: d.rate });
+}
+function avcCodec(w, h, fps) {
+  const mbps = Math.ceil(w / 16) * Math.ceil(h / 16) * fps;
+  const lv = [[983040, '33'], [2073600, '34'], [4177920, '3C'], [8355840, '3D']].find(l => mbps <= l[0]);
+  return 'avc1.6400' + (lv ? lv[1] : '3E');
+}
+async function renderSong() {
+  if (rendering) { rendering.cancel = true; setStatus('Stopping...'); return; }
+  if (recorder) { setStatus('Stop the live recording first.'); return; }
+  const sa = inPlugin();
+  if (sa ? !songReady : !loadedFile) { setStatus(sa ? 'Load a song first (Load song, top bar).' : 'Load a song first (Load audio, top bar).'); return; }
+  if (!window.VideoEncoder || !window.Mp4Muxer) { setStatus('This browser cannot render videos frame by frame. Use Record live instead.'); return; }
+  const size = recSize(), fps = FPS[UI.recFps];
+  const vcfg = { codec: avcCodec(size[0], size[1], fps), width: size[0], height: size[1], bitrate: recBitrate(size, fps), framerate: fps, hardwareAcceleration: 'prefer-hardware', avc: { format: 'avc' }, latencyMode: 'quality' };
+  let ok = (await VideoEncoder.isConfigSupported(vcfg).catch(() => ({}))).supported;
+  if (!ok) { vcfg.hardwareAcceleration = 'no-preference'; ok = (await VideoEncoder.isConfigSupported(vcfg).catch(() => ({}))).supported; }
+  if (!ok) { setStatus('Your video encoder cannot make ' + size[0] + 'x' + size[1] + ' at ' + fps + ' fps. Pick a lower resolution or frame rate.'); return; }
+  rendering = { cancel: false };
+  $('renderBtn').textContent = 'Cancel render';
+  const prevMode = mode;
+  if (demo && mode === 'demo') demo.stop(); if (audioEl) audioEl.pause(); if (sa) juce().emitEvent('song-pause', {});
+  let L, Rr, rate;
+  try {
+    setStatus('Decoding the song...');
+    if (sa) { const pcm = await getPluginPcm(); if (!pcm) throw new Error('The app could not decode this song.'); L = pcm.L; Rr = pcm.R; rate = pcm.rate; }
+    else { ensureCtx(); const buf = await actx.decodeAudioData(await loadedFile.arrayBuffer()); rate = buf.sampleRate; L = buf.getChannelData(0); Rr = buf.numberOfChannels > 1 ? buf.getChannelData(1) : L; }
+    const frames = Math.ceil(L.length / rate * fps);
+    const track = await analyseSong(L, Rr, rate, fps, frames);
+    if (!track) throw new Error('cancelled');
+    // audio: AAC if the encoder supports it, else Opus (48 kHz only), else video only
+    let acfg = null;
+    if (window.AudioEncoder) for (const c of [{ codec: 'mp4a.40.2', sampleRate: rate, numberOfChannels: 2, bitrate: 192000 }, { codec: 'opus', sampleRate: rate, numberOfChannels: 2, bitrate: 160000 }])
+      if ((await AudioEncoder.isConfigSupported(c).catch(() => ({}))).supported) { acfg = c; break; }
+    let target;
+    if (sa) { juce().emitEvent('render-start', { ext: 'mp4' }); target = new Mp4Muxer.StreamTarget({ onData: (data, pos) => juce().emitEvent('render-chunk', { pos, d: b64(data) }), chunked: true, chunkSize: 4 * 1024 * 1024 }); }
+    else target = new Mp4Muxer.ArrayBufferTarget();
+    const muxer = new Mp4Muxer.Muxer({ target, fastStart: sa ? false : 'in-memory', firstTimestampBehavior: 'offset',
+      video: { codec: 'avc', width: size[0], height: size[1], frameRate: fps },
+      audio: acfg ? { codec: acfg.codec === 'opus' ? 'opus' : 'aac', numberOfChannels: 2, sampleRate: rate } : undefined });
+    let encErr = null;
+    const venc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: e => (encErr = e) }); venc.configure(vcfg);
+    const aenc = acfg ? new AudioEncoder({ output: (c, m) => muxer.addAudioChunk(c, m), error: e => (encErr = e) }) : null; if (aenc) aenc.configure(acfg);
+    prepLogoTex(); mode = 'offline'; recDims = size; resize();
+    const t0 = performance.now(); let aPos = 0, n = 0;
+    for (; n < frames && !rendering.cancel && !encErr; n++) {
+      for (let i = 0; i < NMOD; i++) raw[i] = track[n * NMOD + i];
+      step(t0 + n * 1000 / fps, 1 / fps);
+      const vf = new VideoFrame(canvas, { timestamp: Math.round(n * 1e6 / fps), duration: Math.round(1e6 / fps) });
+      venc.encode(vf, { keyFrame: n % (fps * 2) === 0 }); vf.close();
+      if (aenc) { const until = Math.min(L.length, Math.round((n + 1) / fps * rate));
+        while (aPos < until) { const len = Math.min(4096, L.length - aPos), data = new Float32Array(len * 2); data.set(L.subarray(aPos, aPos + len), 0); data.set(Rr.subarray(aPos, aPos + len), len);
+          const ad = new AudioData({ format: 'f32-planar', sampleRate: rate, numberOfFrames: len, numberOfChannels: 2, timestamp: Math.round(aPos / rate * 1e6), data }); aenc.encode(ad); ad.close(); aPos += len; } }
+      while (venc.encodeQueueSize > 6) await new Promise(r => setTimeout(r, 1));
+      if (n % 10 === 0) { const el = (performance.now() - t0) / 1000, eta = n ? el / n * (frames - n) : 0;
+        setStatus('Rendering ' + size[0] + 'x' + size[1] + ' ' + fps + ' fps: frame ' + n + ' / ' + frames + ' (' + Math.round(n / frames * 100) + '%), about ' + mmss(eta) + ' left. ' + (n > 30 ? Math.round(n / el) + ' frames/s.' : ''));
+        await new Promise(r => setTimeout(r, 0)); }
+    }
+    await venc.flush(); if (aenc) await aenc.flush(); muxer.finalize();
+    if (encErr) throw encErr;
+    const note = (rendering.cancel ? 'Render stopped at ' + mmss(n / fps) + '; saved the part rendered. ' : '') + (acfg ? '' : 'Your browser cannot encode audio, so this video has no sound. ');
+    if (sa) { juce().emitEvent('render-end', {}); setStatus(note + 'Saving...'); }
+    else await saveBlob(new Blob([target.buffer], { type: 'video/mp4' }), 'mp4', note ? note + 'Saved.' : '');
+  } catch (e) {
+    if (sa) juce().emitEvent('render-end', {});
+    setStatus(e && e.message === 'cancelled' ? 'Render cancelled.' : 'Render failed: ' + (e && e.message || e));
+  } finally {
+    rendering = null; recDims = null; resize(); mode = prevMode === 'offline' ? 'idle' : (prevMode === 'demo' || prevMode === 'file' ? 'idle' : prevMode);
+    $('renderBtn').textContent = 'Render song to video';
+    if (prevMode === 'demo' || prevMode === 'file') { playBtn.innerHTML = '&#9654; ' + (prevMode === 'demo' ? 'Play demo' : 'Play file'); playBtn.dataset.paused = prevMode; }
+  }
+}
+$('renderBtn').addEventListener('click', renderSong);
 const toggleRec = () => { if (recorder && recFromSong && juce()) juce().emitEvent('song-pause', {}); if (armed) { armed = false; recLabel(false); setStatus('Recording cancelled.'); } else if (recorder) { if (recorder.state !== 'inactive') recorder.stop(); } else startRec(); };
 $('rec').addEventListener('click', toggleRec); $('rec2').addEventListener('click', toggleRec);
 
@@ -1225,8 +1346,10 @@ function connectPlugin() {
   be.addEventListener('host', d => { if (d && d.standalone) { document.body.classList.add('standalone'); setStatus('Load a song, or play audio into your input device.'); } });
   be.addEventListener('song', d => {
     if (d && d.ok) { songReady = true; setStatus('Loaded ' + d.name + ' (' + mmss(d.length || 0) + '). Press Play, or Record to make a video of the whole song.'); }
-    else setStatus('Could not open that file. Try WAV, MP3, AIFF, FLAC or Ogg.');
+    else setStatus('Could not open that file. Try WAV, MP3, Opus, AIFF, FLAC or Ogg.');
   });
+  be.addEventListener('song-pcm-chunk', d => pcmParts.push(d.d));
+  be.addEventListener('song-pcm-end', onPcmEnd);
   be.addEventListener('rec-saved', d => setStatus(d && d.path ? 'Saved to ' + d.path : 'Could not save the recording.'));
   be.emitEvent('ready', {});
 }
@@ -1239,8 +1362,9 @@ const smix = STYLE_MIX[0].slice();
 const col = { c1: new THREE.Color(UI.c1), c2: new THREE.Color(UI.c2), c3: new THREE.Color(UI.c3), c4: new THREE.Color(UI.c4) }, tmpC = new THREE.Color();
 let hzSamples = [], hzLast = 0;
 let last = performance.now(), flowT = 0, spin = 0, cycleHue = 0, loud = 0, knobTick = 0;
-function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now; time += dt;
+function frame(now) { if (!rendering || mode !== 'offline') step(now); requestAnimationFrame(frame); }
+function step(now, fixedDt) {
+  const dt = fixedDt ?? Math.min(0.05, (now - last) / 1000); last = now; time += dt;
   if (Math.round(P.rscale) !== lastScale) { lastScale = Math.round(P.rscale); resize(); }
   if (mode === 'demo' || mode === 'file') readAnalyser();
   else if (mode === 'idle') {
@@ -1264,7 +1388,7 @@ function frame(now) {
   for (let i = 1; i <= NMOD; i++) { if (mp(i, 'on') <= 0.5) continue; const v = VIS[Math.round(mp(i, 'tgt'))]; if (v) cur[v.id] += mp(i, 'amt') * lv[i - 1] * (v.max - v.min) * 0.5; }
   VIS.forEach(v => (cur[v.id] = clamp(cur[v.id], v.min, v.max)));
   if (++knobTick % 2 === 0) VIS.forEach(v => drawKnob(v.id, P[v.id], cur[v.id]));
-  if (!displayHz) { hzSamples.push(now - (hzLast || now)); hzLast = now; if (hzSamples.length > 90) { const m = hzSamples.slice(10).sort((a, b) => a - b)[40]; displayHz = m > 0 ? 1000 / m : 60; render(); } }
+  if (!displayHz && !fixedDt) { hzSamples.push(now - (hzLast || now)); hzLast = now; if (hzSamples.length > 90) { const m = hzSamples.slice(10).sort((a, b) => a - b)[40]; displayHz = m > 0 ? 1000 / m : 60; render(); } }
   if (recorder && recPerf.fps) { recPerf.n++; recPerf.t += dt;
     if (recPerf.t > 3) { const got = recPerf.n / recPerf.t;
       if (got < recPerf.fps * 0.8 && !recPerf.warned) { recPerf.warned = true; setStatus('Your graphics card is drawing about ' + Math.round(got) + ' fps, below the ' + recPerf.fps + ' fps recording, so the video will stutter. Lower the resolution, frame rate or Mesh quality.'); }
@@ -1304,7 +1428,6 @@ function frame(now) {
     const s = Math.floor((now - recStart) / 1000);
     if (!inPlugin() && recBytes > 1.5e9 && !recMemWarned) { recMemWarned = true; setStatus('This recording is over 1.5 GB and is held in memory until you stop. Stop soon, or use the plugin / standalone app for long 4K videos (it writes to disk as it goes).'); } recLabel(true, Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'));
   }
-  requestAnimationFrame(frame);
 }
 
 // ===== Start =====

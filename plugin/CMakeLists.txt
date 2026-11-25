@@ -12,6 +12,32 @@ FetchContent_Declare(JUCE
     GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(JUCE)
 
+# Opus decoding (JUCE has no Opus reader): Xiph's libogg + libopus, and opusfile built from source.
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(INSTALL_DOCS OFF CACHE BOOL "" FORCE)
+set(OPUS_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
+set(OPUS_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(OPUS_INSTALL_PKG_CONFIG_MODULE OFF CACHE BOOL "" FORCE)
+set(OPUS_INSTALL_CMAKE_CONFIG_MODULE OFF CACHE BOOL "" FORCE)
+set(OPUS_DISABLE_INTRINSICS ON CACHE BOOL "" FORCE) # keeps universal (arm64 + x86_64) Mac builds simple
+FetchContent_Declare(ogg GIT_REPOSITORY https://github.com/xiph/ogg.git GIT_TAG v1.3.5 GIT_SHALLOW TRUE)
+FetchContent_Declare(opus GIT_REPOSITORY https://github.com/xiph/opus.git GIT_TAG v1.5.2 GIT_SHALLOW TRUE)
+FetchContent_Declare(opusfile GIT_REPOSITORY https://github.com/xiph/opusfile.git GIT_TAG v0.12 GIT_SHALLOW TRUE)
+FetchContent_MakeAvailable(ogg opus)
+FetchContent_GetProperties(opusfile)
+if(NOT opusfile_POPULATED)
+    FetchContent_Populate(opusfile)
+endif()
+add_library(sphere_opusfile STATIC
+    ${opusfile_SOURCE_DIR}/src/info.c
+    ${opusfile_SOURCE_DIR}/src/internal.c
+    ${opusfile_SOURCE_DIR}/src/opusfile.c
+    ${opusfile_SOURCE_DIR}/src/stream.c)
+target_include_directories(sphere_opusfile PUBLIC ${opusfile_SOURCE_DIR}/include ${opus_SOURCE_DIR}/include)
+target_compile_definitions(sphere_opusfile PRIVATE OP_DISABLE_HTTP )
+target_link_libraries(sphere_opusfile PUBLIC ogg opus)
+set_target_properties(sphere_opusfile ogg opus PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # AAX needs Avid's SDK: download it, then configure with -DAAX_SDK_PATH=/path/to/aax-sdk
 set(SPHERE_FORMATS VST3 Standalone)
 if(APPLE)
@@ -40,11 +66,13 @@ juce_add_plugin(SphereVisualizer
 
 juce_add_binary_data(SphereAssets SOURCES
     ../web/index.html
-    Resources/three.min.js)
+    Resources/three.min.js
+    Resources/mp4-muxer.js)
 
 target_sources(SphereVisualizer PRIVATE
     Source/PluginProcessor.cpp
-    Source/PluginEditor.cpp)
+    Source/PluginEditor.cpp
+    Source/OpusFormat.cpp)
 
 target_compile_definitions(SphereVisualizer PUBLIC
     JUCE_WEB_BROWSER=1
@@ -57,6 +85,7 @@ target_compile_definitions(SphereVisualizer PUBLIC
 target_link_libraries(SphereVisualizer
     PRIVATE
         SphereAssets
+        sphere_opusfile
         juce::juce_audio_utils
         juce::juce_dsp
         juce::juce_gui_extra

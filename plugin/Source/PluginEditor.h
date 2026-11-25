@@ -20,10 +20,11 @@ private:
     void timerCallback() override;
     void onParamFromPage (const juce::var& payload);
     void onReady();
-    void onRecStart (const juce::var& payload);
+    void onRecStart (const juce::var& payload, bool withWav);
     void onRecChunk (const juce::var& payload);
     void onRecEnd();
     void onSongLoad();
+    void onSongPcm();
     std::unique_ptr<juce::FileChooser> chooser;
     std::optional<juce::WebBrowserComponent::Resource> getResource (const juce::String& url);
 

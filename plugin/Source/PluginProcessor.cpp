@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "OpusFormat.h"
 
 namespace
 {
@@ -23,7 +24,8 @@ SphereAudioProcessor::SphereAudioProcessor()
     }
     writerThread.startThread();
     readThread.startThread();
-    formats.registerBasicFormats(); // WAV, AIFF, FLAC, Ogg, MP3
+    formats.registerBasicFormats(); // WAV, AIFF, FLAC, Ogg Vorbis, MP3
+    formats.registerFormat (new OpusAudioFormat(), false);
 }
 
 SphereAudioProcessor::~SphereAudioProcessor()
@@ -146,7 +148,22 @@ bool SphereAudioProcessor::loadSong (const juce::File& file)
     player.setSource (src.get(), 65536, &readThread, fileRate, 2);
     songSource = std::move (src);
     songName = file.getFileName();
+    songFile = file;
     songLoaded = true;
+    return true;
+}
+
+bool SphereAudioProcessor::decodeSong (juce::AudioBuffer<float>& out, double& rate)
+{
+    std::unique_ptr<juce::AudioFormatReader> reader (formats.createReaderFor (songFile));
+    if (reader == nullptr || reader->lengthInSamples <= 0)
+        return false;
+    rate = reader->sampleRate;
+    const int len = (int) std::min<juce::int64> (reader->lengthInSamples, (juce::int64) std::numeric_limits<int>::max() - 1);
+    out.setSize (2, len);
+    reader->read (&out, 0, len, 0, true, true);
+    if (reader->numChannels < 2)
+        out.copyFrom (1, 0, out, 0, 0, len);
     return true;
 }
 
