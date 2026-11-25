@@ -222,6 +222,7 @@ body.in-plugin .plugin-only { display: revert !important; }
         <section class="sec"><h3>Format</h3><div class="seg" id="rformat"></div></section>
         <section class="sec"><h3>Resolution</h3><div class="seg" id="rres" style="--n:4"></div></section>
         <section class="sec"><h3>Frame rate</h3><div class="seg" id="rfps"></div></section>
+        <section class="sec"><h3>Quality</h3><div class="seg" id="rqual"></div><p class="note" id="rest"></p></section>
         <label class="check"><input type="checkbox" id="transp"> Transparent background (WebM)</label>
         <button class="btn rec recbig" id="rec2" type="button"><span class="dot"></span><span id="rect2">Start recording</span></button>
         <p class="note web-only">Record starts your track (or the demo) from the beginning and stops when a loaded track ends. The recording includes the audio you're playing. High resolutions and frame rates depend on your graphics card; if the video stutters, step down one.</p>
@@ -281,7 +282,7 @@ const mp = (i, k) => P['m' + i + '_' + k];
 
 // Look settings that aren't automatable (saved with the plugin state as JSON)
 const UI = { c1: '#ff3ccf', c2: '#3c7bff', c3: '#ff9a4a', c4: '#05040a', cmode: 0, cspeed: 0.05, transparent: false,
-  logo: null, logoPos: 3, logoSize: 0.16, logoOpacity: 0.9, recFormat: 0, recRes: 1, recFps: 1, preset: 'Supernova', cycle: 0 };
+  logo: null, logoPos: 3, logoSize: 0.16, logoOpacity: 0.9, recFormat: 0, recRes: 1, recFps: 1, recQuality: 1, preset: 'Supernova', cycle: 0 };
 
 const PALETTES = [
   ['Supernova', '#ff3ccf', '#3c7bff', '#ff9a4a', '#05040a'], ['Aurora', '#3cf0ff', '#7a5cff', '#b6ff9e', '#04060b'],
@@ -366,6 +367,7 @@ segFill('rscale', RSCALE.map(s => s * 100 + '%'), v => setParam('rscale', v));
 segFill('rformat', ['16:9', '9:16', '1:1'], v => setUI('recFormat', v));
 segFill('rres', ['720p', '1080p', '1440p', '4K'], v => setUI('recRes', v));
 segFill('rfps', ['30', '60', '120'], v => setUI('recFps', v));
+segFill('rqual', ['Smaller file', 'Balanced', 'Best'], v => setUI('recQuality', v));
 segFill('cmode', CMODES.map(c => c[0]), v => setUI('cmode', v));
 
 // knobs
@@ -594,7 +596,8 @@ const base = {}, cur = {}; VIS.forEach(v => { base[v.id] = P[v.id]; cur[v.id] = 
 function rangeName(lo, hi) { const r = RANGES.find(r => r[1] === Math.round(lo) && r[2] === Math.round(hi)); return r ? r[0] : Math.round(lo) + '\u2013' + Math.round(hi) + ' Hz'; }
 function render() {
   const pr = (id, v) => document.querySelectorAll('#' + id + ' button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === Math.round(v)));
-  document.querySelectorAll('#styles button').forEach(b => b.setAttribute('aria-pressed', MIXIDS.every((id, k) => Math.abs(P[id] - (k === +b.dataset.v ? 1 : 0)) < 0.01))); pr('shapes', P.shape); pr('density', P.density); pr('rscale', P.rscale); pr('rformat', UI.recFormat); pr('rres', UI.recRes); pr('rfps', UI.recFps); pr('cmode', UI.cmode);
+  document.querySelectorAll('#styles button').forEach(b => b.setAttribute('aria-pressed', MIXIDS.every((id, k) => Math.abs(P[id] - (k === +b.dataset.v ? 1 : 0)) < 0.01))); pr('shapes', P.shape); pr('density', P.density); pr('rscale', P.rscale); pr('rformat', UI.recFormat); pr('rres', UI.recRes); pr('rfps', UI.recFps); pr('rqual', UI.recQuality ?? 1);
+  { const d = recSize(), mb = (recBitrate(d) + 192000) * 60 / 8 / 1e6; $('rest').textContent = 'About ' + Math.round(mb) + ' MB per minute at ' + d[0] + 'x' + d[1] + ', ' + FPS[UI.recFps] + ' fps. Rendered at ' + recSS() + 'x and scaled down for clean edges.'; } pr('cmode', UI.cmode);
   const badges = {}; VIS.forEach(v => (badges[v.id] = ''));
   for (let i = 1; i <= NMOD; i++) {
     const k = 'm' + i + '_', on = mp(i, 'on') > 0.5, lfo = Math.round(mp(i, 'src')) === 1, tgt = VIS[Math.round(mp(i, 'tgt'))] || VIS[0];
@@ -975,7 +978,7 @@ function resize() {
   const r = canvas.parentElement.getBoundingClientRect();
   if (r.width < 2 || r.height < 2) return;
   let w = r.width, h = r.height;
-  if (recDims) { renderer.setPixelRatio(1); renderer.setSize(recDims[0], recDims[1], false); w = recDims[0]; h = recDims[1]; }
+  if (recDims) { renderer.setPixelRatio(recSS()); renderer.setSize(recDims[0], recDims[1], false); w = recDims[0]; h = recDims[1]; }
   else { renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2) * RSCALE[Math.round(P.rscale)]); renderer.setSize(w, h, false); }
   camera.aspect = w / h;
   camera.position.z = 5.6 * Math.max(1, 0.95 / Math.max(camera.aspect, 0.4)) * (!recDims && h < 560 ? 1.15 : 1);
@@ -1071,6 +1074,12 @@ $('file').addEventListener('change', e => {
 // ===== Recording =====
 let recorder = null, recStart = 0, recChunks = [], comp = null, cctx = null, recMime = '', recSeq = Promise.resolve();
 const RES = [720, 1080, 1440, 2160], FPS = [30, 60, 120];
+function recSize() { const sh = RES[UI.recRes], f = UI.recFormat; return f === 0 ? [Math.round(sh * 16 / 9), sh] : f === 1 ? [sh, Math.round(sh * 16 / 9)] : [sh, sh]; }
+const recSS = () => [2, 2, 1.5, 1][UI.recRes]; // supersampling factor while recording
+function recBitrate(d) { // bits per second, scaled to pixels and frame rate
+  const bpp = [0.045, 0.075, 0.12][UI.recQuality ?? 1];
+  return clamp(Math.round(d[0] * d[1] * FPS[UI.recFps] * bpp), 2e6, 80e6);
+}
 function pickMime(alpha) {
   const list = alpha ? ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'] : ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
   return list.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
@@ -1094,14 +1103,13 @@ function startRec() {
 }
 function beginRec() {
   if (!window.MediaRecorder || !canvas.captureStream) { setStatus('Recording is not supported in this browser.'); return; }
-  const short = RES[UI.recRes], f = UI.recFormat;
-  recDims = f === 0 ? [Math.round(short * 16 / 9), short] : f === 1 ? [short, Math.round(short * 16 / 9)] : [short, short];
+  recDims = recSize();
   resize();
-  comp = document.createElement('canvas'); comp.width = recDims[0]; comp.height = recDims[1]; cctx = comp.getContext('2d');
+  comp = document.createElement('canvas'); comp.width = recDims[0]; comp.height = recDims[1]; cctx = comp.getContext('2d'); cctx.imageSmoothingEnabled = true; cctx.imageSmoothingQuality = 'high';
   const stream = comp.captureStream(FPS[UI.recFps]);
   if (recDest && !inPlugin()) recDest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
   recMime = pickMime(UI.transparent);
-  try { recorder = new MediaRecorder(stream, { mimeType: recMime || undefined, videoBitsPerSecond: [8, 16, 30, 60][UI.recRes] * 1e6 }); }
+  try { recorder = new MediaRecorder(stream, { mimeType: recMime || undefined, videoBitsPerSecond: recBitrate(recDims), audioBitsPerSecond: 192000 }); }
   catch (e) { recDims = null; resize(); setStatus('This browser could not start a recording.'); return; }
   recMime = recorder.mimeType || recMime;
   const ext = recMime.includes('mp4') ? 'mp4' : 'webm';
