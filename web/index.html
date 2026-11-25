@@ -46,6 +46,12 @@ body.panel-hidden .rack { display: none; }
 .pnav { display: inline-flex; align-items: center; background: rgba(21, 23, 35, 0.8); border: 1px solid var(--line); border-radius: 8px; backdrop-filter: blur(6px); }
 .pnav button { border: 0; background: none; color: var(--fg); padding: 7px 10px; cursor: pointer; font-size: 14px; }
 .pnav span { font-size: 13px; min-width: 96px; text-align: center; }
+.rov { position: absolute; z-index: 3; left: 50%; bottom: 48px; transform: translateX(-50%); width: min(520px, calc(100% - 32px)); background: rgba(12, 13, 20, 0.92); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; backdrop-filter: blur(8px); }
+.rov b { font-size: 14px; }
+.rov .rbar { height: 8px; background: var(--raise); border-radius: 4px; overflow: hidden; }
+.rov .rbar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.2s; }
+.rov span { font: 12px var(--mono); color: var(--fg); font-variant-numeric: tabular-nums; }
+.rov p { margin: 0; font-size: 12px; color: var(--dim); line-height: 1.5; }
 .status { position: absolute; z-index: 2; left: max(16px, env(safe-area-inset-left, 0px)); right: 16px; bottom: 12px; font: 11px var(--mono); color: var(--dim); }
 
 .rack { background: var(--panel); border-left: 1px solid var(--line); min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
@@ -159,6 +165,8 @@ body.in-plugin .plugin-only { display: revert !important; }
       <button class="btn rec" id="rec" type="button"><span class="dot"></span><span id="rect">Rec</span></button>
       <button class="btn" id="hide" type="button" aria-pressed="false" aria-label="Hide controls">&#9707;</button>
     </div>
+    <div class="rov" id="rov" hidden><b id="rovT">Rendering video</b><div class="rbar"><i id="rovBar"></i></div><span id="rovS"></span>
+      <p>The picture here runs slower than real time while each frame is drawn and encoded, and there is no sound. That's expected: the saved video plays smoothly at the full frame rate. Press Rec or Cancel render to stop.</p></div>
     <div class="status" id="status">Preview motion. Press Play to hear the demo beat.</div>
   </div>
 
@@ -230,6 +238,7 @@ body.in-plugin .plugin-only { display: revert !important; }
         <button class="btn primary recbig" id="renderBtn" type="button">Render song to video</button>
         <p class="note">Render draws every frame at exact time steps and encodes with your graphics card, so the video never stutters, whatever the resolution. It saves one MP4 with the song's audio inside. It needs a loaded song and can take longer than the song itself.</p>
         <button class="btn rec recbig" id="rec2" type="button"><span class="dot"></span><span id="rect2">Record live</span></button>
+        <p class="note">With a song loaded, the Rec button in the top bar renders frame by frame too. Record live is for when there's no song (live input or the demo).</p>
         <p class="note web-only">Record starts your track (or the demo) from the beginning and stops when a loaded track ends. The recording includes the audio you're playing. High resolutions and frame rates depend on your graphics card; if the video stutters, step down one.</p>
         <p class="note sa-only" style="display:block">In the standalone app, load a song with Load song: Record plays it from the start and stops when it ends. Without a song it records whatever comes in on your audio input.</p>
         <p class="note plugin-only">In a DAW, press Record, then play your DAW: recording starts and stops with the transport. Videos are saved to Movies/Sphere Visualizer with a matching WAV of the track.</p>
@@ -1150,9 +1159,11 @@ $('saPlay').addEventListener('click', () => {
   if (!songReady) { juce().emitEvent('song-load', {}); return; }
   if (songState && songState.playing) juce().emitEvent('song-pause', {}); else juce().emitEvent('song-play', { fromStart: false });
 });
-function startRec() {
+function songAvailable() { return inPlugin() ? document.body.classList.contains('standalone') && songReady : !!loadedFile; }
+function startRec(live) {
   if (recLabelBusy()) return;
-  if (document.body.classList.contains('standalone') && songReady) {
+  if (!live && songAvailable()) { renderSong(); return; } // a loaded song always renders frame by frame: smooth at any resolution
+  if (document.body.classList.contains('standalone') && songReady && live) {
     recFromSong = true; recSawPlay = false; juce().emitEvent('song-play', { fromStart: true }); beginRec(); return;
   }
   recFromSong = false;
@@ -1231,7 +1242,7 @@ async function analyseSong(L, R, rate, fps, frames) {
     fftInPlace(re, im);
     for (let k = 0; k < N / 2; k++) { const m = Math.hypot(re[k], im[k]) / N; mag[k] = clamp((20 * Math.log10(m + 1e-12) + 90) / 80, 0, 1); }
     for (let b = 0; b < NMOD; b++) { let sum = 0; for (let k = bands[b][0]; k <= bands[b][1]; k++) sum += mag[k]; out[f * NMOD + b] = sum / (bands[b][1] - bands[b][0] + 1); }
-    if (f % 400 === 0) { setStatus('Analysing the song... ' + Math.round(f / frames * 100) + '%'); await new Promise(r => setTimeout(r, 0)); if (rendering && rendering.cancel) return null; }
+    if (f % 400 === 0) { setStatus('Analysing the song... ' + Math.round(f / frames * 100) + '%'); $('rovT').textContent = 'Analysing the song'; $('rovBar').style.width = Math.round(f / frames * 100) + '%'; await new Promise(r => setTimeout(r, 0)); if (rendering && rendering.cancel) return null; }
   }
   return out;
 }
@@ -1247,6 +1258,7 @@ function onPcmEnd(d) {
       if (l > 32767) l -= 65536; if (r > 32767) r -= 65536; L[o] = l / 32768; R[o] = r / 32768; } }
   pcmParts = []; done({ L, R, rate: d.rate });
 }
+function renderLabel(t) { $('rec').classList.toggle('on', !!t); $('rect').textContent = t || 'Rec'; }
 function avcCodec(w, h, fps) {
   const mbps = Math.ceil(w / 16) * Math.ceil(h / 16) * fps;
   const lv = [[983040, '33'], [2073600, '34'], [4177920, '3C'], [8355840, '3D']].find(l => mbps <= l[0]);
@@ -1264,7 +1276,8 @@ async function renderSong() {
   if (!ok) { vcfg.hardwareAcceleration = 'no-preference'; ok = (await VideoEncoder.isConfigSupported(vcfg).catch(() => ({}))).supported; }
   if (!ok) { setStatus('Your video encoder cannot make ' + size[0] + 'x' + size[1] + ' at ' + fps + ' fps. Pick a lower resolution or frame rate.'); return; }
   rendering = { cancel: false };
-  $('renderBtn').textContent = 'Cancel render';
+  $('renderBtn').textContent = 'Cancel render'; $('rov').hidden = false; $('rovBar').style.width = '0%'; $('rovT').textContent = 'Preparing ' + size[0] + 'x' + size[1] + ' at ' + fps + ' fps'; $('rovS').textContent = ''; renderLabel('0%');
+  playBtn.innerHTML = '&#9654; ' + (loadedFile ? 'Play file' : 'Play demo');
   const prevMode = mode;
   if (demo && mode === 'demo') demo.stop(); if (audioEl) audioEl.pause(); if (sa) juce().emitEvent('song-pause', {});
   let L, Rr, rate;
@@ -1300,7 +1313,10 @@ async function renderSong() {
           const ad = new AudioData({ format: 'f32-planar', sampleRate: rate, numberOfFrames: len, numberOfChannels: 2, timestamp: Math.round(aPos / rate * 1e6), data }); aenc.encode(ad); ad.close(); aPos += len; } }
       while (venc.encodeQueueSize > 6) await new Promise(r => setTimeout(r, 1));
       if (n % 10 === 0) { const el = (performance.now() - t0) / 1000, eta = n ? el / n * (frames - n) : 0;
-        setStatus('Rendering ' + size[0] + 'x' + size[1] + ' ' + fps + ' fps: frame ' + n + ' / ' + frames + ' (' + Math.round(n / frames * 100) + '%), about ' + mmss(eta) + ' left. ' + (n > 30 ? Math.round(n / el) + ' frames/s.' : ''));
+        const pct = Math.round(n / frames * 100);
+        $('rovT').textContent = 'Rendering ' + size[0] + 'x' + size[1] + ' at ' + fps + ' fps'; $('rovBar').style.width = pct + '%';
+        $('rovS').textContent = pct + '%  frame ' + n + ' / ' + frames + '  ' + (n > 30 ? Math.round(n / el) + ' frames/s  ' + mmss(eta) + ' left' : '');
+        renderLabel(pct + '%'); setStatus('Rendering... ' + pct + '%');
         await new Promise(r => setTimeout(r, 0)); }
     }
     await venc.flush(); if (aenc) await aenc.flush(); muxer.finalize();
@@ -1313,13 +1329,14 @@ async function renderSong() {
     setStatus(e && e.message === 'cancelled' ? 'Render cancelled.' : 'Render failed: ' + (e && e.message || e));
   } finally {
     rendering = null; recDims = null; resize(); mode = prevMode === 'offline' ? 'idle' : (prevMode === 'demo' || prevMode === 'file' ? 'idle' : prevMode);
-    $('renderBtn').textContent = 'Render song to video';
-    if (prevMode === 'demo' || prevMode === 'file') { playBtn.innerHTML = '&#9654; ' + (prevMode === 'demo' ? 'Play demo' : 'Play file'); playBtn.dataset.paused = prevMode; }
+    $('renderBtn').textContent = 'Render song to video'; $('rov').hidden = true; renderLabel('');
+    if (prevMode === 'demo' || prevMode === 'file') playBtn.dataset.paused = prevMode;
   }
 }
 $('renderBtn').addEventListener('click', renderSong);
-const toggleRec = () => { if (recorder && recFromSong && juce()) juce().emitEvent('song-pause', {}); if (armed) { armed = false; recLabel(false); setStatus('Recording cancelled.'); } else if (recorder) { if (recorder.state !== 'inactive') recorder.stop(); } else startRec(); };
-$('rec').addEventListener('click', toggleRec); $('rec2').addEventListener('click', toggleRec);
+const toggleRec = () => { if (rendering) { renderSong(); return; } if (recorder && recFromSong && juce()) juce().emitEvent('song-pause', {}); if (armed) { armed = false; recLabel(false); setStatus('Recording cancelled.'); } else if (recorder) { if (recorder.state !== 'inactive') recorder.stop(); } else startRec(); };
+$('rec').addEventListener('click', toggleRec);
+$('rec2').addEventListener('click', () => { if (rendering) return; if (armed || recorder) toggleRec(); else startRec(true); });
 
 // ===== Plugin bridge =====
 function connectPlugin() {
