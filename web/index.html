@@ -596,7 +596,8 @@ const base = {}, cur = {}; VIS.forEach(v => { base[v.id] = P[v.id]; cur[v.id] = 
 function rangeName(lo, hi) { const r = RANGES.find(r => r[1] === Math.round(lo) && r[2] === Math.round(hi)); return r ? r[0] : Math.round(lo) + '\u2013' + Math.round(hi) + ' Hz'; }
 function render() {
   const pr = (id, v) => document.querySelectorAll('#' + id + ' button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === Math.round(v)));
-  document.querySelectorAll('#styles button').forEach(b => b.setAttribute('aria-pressed', MIXIDS.every((id, k) => Math.abs(P[id] - (k === +b.dataset.v ? 1 : 0)) < 0.01))); pr('shapes', P.shape); pr('density', P.density); pr('rscale', P.rscale); pr('rformat', UI.recFormat); pr('rres', UI.recRes); pr('rfps', UI.recFps); pr('rqual', UI.recQuality ?? 1);
+  document.querySelectorAll('#styles button').forEach(b => b.setAttribute('aria-pressed', MIXIDS.every((id, k) => Math.abs(P[id] - (k === +b.dataset.v ? 1 : 0)) < 0.01))); pr('shapes', P.shape); pr('density', P.density); pr('rscale', P.rscale); pr('rformat', UI.recFormat); pr('rres', UI.recRes); pr('rfps', UI.recFps);
+  document.querySelectorAll('#rfps button').forEach(b => { const slow = displayHz && FPS[+b.dataset.v] > displayHz * 1.1; b.disabled = !!slow; b.style.opacity = slow ? 0.35 : ''; b.title = slow ? 'Your screen refreshes at about ' + Math.round(displayHz) + ' Hz, so the visuals cannot be drawn faster than that.' : ''; }); pr('rqual', UI.recQuality ?? 1);
   { const d = recSize(), mb = (recBitrate(d) + 192000) * 60 / 8 / 1e6; $('rest').textContent = 'About ' + Math.round(mb) + ' MB per minute at ' + d[0] + 'x' + d[1] + ', ' + FPS[UI.recFps] + ' fps. Rendered at ' + recSS() + 'x and scaled down for clean edges.'; } pr('cmode', UI.cmode);
   const badges = {}; VIS.forEach(v => (badges[v.id] = ''));
   for (let i = 1; i <= NMOD; i++) {
@@ -1076,16 +1077,37 @@ let recorder = null, recStart = 0, recChunks = [], comp = null, cctx = null, rec
 const RES = [720, 1080, 1440, 2160], FPS = [30, 60, 120];
 function recSize() { const sh = RES[UI.recRes], f = UI.recFormat; return f === 0 ? [Math.round(sh * 16 / 9), sh] : f === 1 ? [sh, Math.round(sh * 16 / 9)] : [sh, sh]; }
 const recSS = () => [2, 2, 1.5, 1][UI.recRes]; // supersampling factor while recording
-function recBitrate(d) { // bits per second, scaled to pixels and frame rate
+function recBitrate(d, fps = FPS[UI.recFps]) { // bits per second, scaled to pixels and frame rate
   const bpp = [0.045, 0.075, 0.12][UI.recQuality ?? 1];
-  return clamp(Math.round(d[0] * d[1] * FPS[UI.recFps] * bpp), 2e6, 80e6);
+  return clamp(Math.round(d[0] * d[1] * fps * bpp), 2e6, 80e6);
 }
+let displayHz = 0; // measured screen refresh rate; rendering (and so recording) can't run faster than this
+// Ask the browser's encoder (WebCodecs) whether it can handle a size and frame rate before recording with it.
+async function encoderCan(w, h, fps, mime) {
+  if (!window.VideoEncoder || !VideoEncoder.isConfigSupported) return true; // can't check: just try
+  const px = w * h * fps;
+  const codec = mime.includes('mp4') ? (px <= 3840 * 2160 * 30 ? 'avc1.640033' : px <= 3840 * 2160 * 60 ? 'avc1.640034' : 'avc1.64003C')
+                                     : mime.includes('vp8') ? 'vp8' : 'vp09.00.51.08';
+  try { const r = await VideoEncoder.isConfigSupported({ codec, width: w, height: h, framerate: fps, bitrate: recBitrate([w, h], fps) }); return !!r.supported; }
+  catch (e) { return false; }
+}
+async function pickRecPlan(mime) {
+  const want = recSize(), fpsList = FPS.slice(0, UI.recFps + 1).reverse();
+  const sizes = [want]; for (let r = UI.recRes - 1; r >= 0; r--) { const sh = RES[r], k = sh / RES[UI.recRes]; sizes.push([Math.round(want[0] * k / 2) * 2, Math.round(want[1] * k / 2) * 2]); }
+  for (const d of sizes) for (const fps of fpsList) {
+    if (displayHz && fps > displayHz * 1.1) continue;
+    if (await encoderCan(d[0], d[1], fps, mime)) return { w: d[0], h: d[1], fps };
+  }
+  return { w: sizes[sizes.length - 1][0], h: sizes[sizes.length - 1][1], fps: 30 };
+}
+let recError = '', recPerf = { n: 0, t: 0, warned: false };
 function pickMime(alpha) {
   const list = alpha ? ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'] : ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
   return list.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
 }
 function b64(buf) { let s = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
 function recLabel(on, t) { $('rec').classList.toggle('on', on); $('rec2').classList.toggle('on', on); $('rect').textContent = on ? t : 'Rec'; $('rect2').textContent = on ? 'Stop recording ' + t : 'Start recording'; }
+const recLabelBusy = () => $('rect').textContent === '...';
 let armed = false, hostPlaying = false, hostTransport = -1; // -1 = no transport (standalone app)
 function ensurePlaying() { // start the audio from the top so the recording has the whole track
   if (inPlugin()) return;
@@ -1097,20 +1119,26 @@ function ensurePlaying() { // start the audio from the top so the recording has 
   playBtn.dataset.paused = ''; playBtn.innerHTML = '&#10074;&#10074; Pause';
 }
 function startRec() {
+  if (recLabelBusy()) return;
   if (inPlugin() && hostTransport === 0) { armed = true; recLabel(true, 'Armed'); setStatus('Armed. Recording starts when you press play in your DAW, and stops when you stop.'); return; }
   ensurePlaying();
   beginRec();
 }
-function beginRec() {
+async function beginRec() {
   if (!window.MediaRecorder || !canvas.captureStream) { setStatus('Recording is not supported in this browser.'); return; }
-  recDims = recSize();
-  resize();
-  comp = document.createElement('canvas'); comp.width = recDims[0]; comp.height = recDims[1]; cctx = comp.getContext('2d'); cctx.imageSmoothingEnabled = true; cctx.imageSmoothingQuality = 'high';
-  const stream = comp.captureStream(FPS[UI.recFps]);
-  if (recDest && !inPlugin()) recDest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
   recMime = pickMime(UI.transparent);
-  try { recorder = new MediaRecorder(stream, { mimeType: recMime || undefined, videoBitsPerSecond: recBitrate(recDims), audioBitsPerSecond: 192000 }); }
-  catch (e) { recDims = null; resize(); setStatus('This browser could not start a recording.'); return; }
+  recLabel(true, '...'); setStatus('Checking what your graphics card can record...');
+  const want = recSize(), plan = await pickRecPlan(recMime);
+  const note = plan.w !== want[0] || plan.fps !== FPS[UI.recFps]
+    ? ' (your ' + (displayHz && FPS[UI.recFps] > displayHz * 1.1 ? 'screen runs at ' + Math.round(displayHz) + ' Hz' : 'video encoder cannot do ' + want[0] + 'x' + want[1] + ' at ' + FPS[UI.recFps] + ' fps') + ', so this is the best it supports)' : '';
+  recDims = [plan.w, plan.h]; resize();
+  comp = document.createElement('canvas'); comp.width = recDims[0]; comp.height = recDims[1]; cctx = comp.getContext('2d'); cctx.imageSmoothingEnabled = true; cctx.imageSmoothingQuality = 'high';
+  const stream = comp.captureStream(plan.fps);
+  if (recDest && !inPlugin()) recDest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+  recError = ''; recPerf = { n: 0, t: 0, warned: false, fps: plan.fps };
+  try { recorder = new MediaRecorder(stream, { mimeType: recMime || undefined, videoBitsPerSecond: recBitrate(recDims, plan.fps), audioBitsPerSecond: 192000 }); }
+  catch (e) { recDims = null; resize(); recLabel(false); setStatus('This browser could not start a recording at ' + plan.w + 'x' + plan.h + '. Try a lower resolution.'); return; }
+  recorder.onerror = ev => { recError = 'The video encoder stopped at ' + plan.w + 'x' + plan.h + ' ' + plan.fps + ' fps' + (ev && ev.error && ev.error.message ? ' (' + ev.error.message + ')' : '') + '. Try a lower resolution or frame rate.'; };
   recMime = recorder.mimeType || recMime;
   const ext = recMime.includes('mp4') ? 'mp4' : 'webm';
   recChunks = [];
@@ -1122,17 +1150,18 @@ function beginRec() {
   };
   recorder.onstop = () => finishRec(ext);
   recorder.start(1000); recStart = performance.now(); recLabel(true, '0:00');
-  setStatus('Recording ' + recDims[0] + 'x' + recDims[1] + ' at ' + FPS[UI.recFps] + ' fps' + (UI.transparent && ext === 'webm' ? ', transparent' : '') + '.');
+  setStatus('Recording ' + recDims[0] + 'x' + recDims[1] + ' at ' + plan.fps + ' fps' + (UI.transparent && ext === 'webm' ? ', transparent' : '') + note + '.');
 }
 async function finishRec(ext) {
   if (audioEl) audioEl.loop = true;
   recLabel(false); recDims = null; recorder = null; resize();
   if (juce()) { await recSeq; juce().emitEvent('rec-end', {}); setStatus('Saving...'); return; }
   const blob = new Blob(recChunks, { type: recMime }); recChunks = [];
+  if (!blob.size) { setStatus(recError || 'Nothing was recorded. Try a lower resolution or frame rate.'); return; }
   const name = 'sphere-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + ext;
   try {
     const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
-    if (dl) { await dl.save({ filename: name, data: blob }); setStatus('Saved ' + name + '.'); return; }
+    if (dl) { await dl.save({ filename: name, data: blob }); setStatus(recError ? 'Saved what was recorded. ' + recError : 'Saved ' + name + '.'); return; }
   } catch (e) { if (e && e.code === 'declined') { setStatus('Recording discarded.'); return; } }
   try { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setStatus('Saved ' + name + '.'); }
   catch (e) { setStatus('Could not save the recording here.'); }
@@ -1166,6 +1195,7 @@ const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const STYLE_MIX = [[1, 1, 1, 1, 0, 0, 0], [0.1, 0.12, 0.6, 0, 1, 0, 0], [0.15, 0.035, 0.5, 0.2, 0, 1, 0], [0.3, 0.8, 3.2, 0, 0, 0, 0], [0.35, 0.5, 0.5, 0, 0, 0, 1]];
 const smix = STYLE_MIX[0].slice();
 const col = { c1: new THREE.Color(UI.c1), c2: new THREE.Color(UI.c2), c3: new THREE.Color(UI.c3), c4: new THREE.Color(UI.c4) }, tmpC = new THREE.Color();
+let hzSamples = [], hzLast = 0;
 let last = performance.now(), flowT = 0, spin = 0, cycleHue = 0, loud = 0, knobTick = 0;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; time += dt;
@@ -1192,6 +1222,11 @@ function frame(now) {
   for (let i = 1; i <= NMOD; i++) { if (mp(i, 'on') <= 0.5) continue; const v = VIS[Math.round(mp(i, 'tgt'))]; if (v) cur[v.id] += mp(i, 'amt') * lv[i - 1] * (v.max - v.min) * 0.5; }
   VIS.forEach(v => (cur[v.id] = clamp(cur[v.id], v.min, v.max)));
   if (++knobTick % 2 === 0) VIS.forEach(v => drawKnob(v.id, P[v.id], cur[v.id]));
+  if (!displayHz) { hzSamples.push(now - (hzLast || now)); hzLast = now; if (hzSamples.length > 90) { const m = hzSamples.slice(10).sort((a, b) => a - b)[40]; displayHz = m > 0 ? 1000 / m : 60; render(); } }
+  if (recorder && recPerf.fps) { recPerf.n++; recPerf.t += dt;
+    if (recPerf.t > 3) { const got = recPerf.n / recPerf.t;
+      if (got < recPerf.fps * 0.8 && !recPerf.warned) { recPerf.warned = true; setStatus('Your graphics card is drawing about ' + Math.round(got) + ' fps, below the ' + recPerf.fps + ' fps recording, so the video will stutter. Lower the resolution, frame rate or Mesh quality.'); }
+      recPerf.n = 0; recPerf.t = 0; } }
   ['c1', 'c2', 'c3', 'c4'].forEach(k => col[k].lerp(tmpC.set(UI[k]), ease));
   U.uC1.value.copy(col.c1); U.uC2.value.copy(col.c2); U.uC3.value.copy(col.c3);
   loud += (lsum / NMOD - loud) * 0.15;
