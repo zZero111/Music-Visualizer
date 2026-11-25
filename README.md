@@ -39,6 +39,13 @@ cmake --build plugin/build --config Release
 
 The first configure downloads JUCE, which takes a couple of minutes.
 
+On Windows, install Microsoft's WebView2 SDK once first (in PowerShell):
+
+```
+Register-PackageSource -ProviderName NuGet -Name nugetRepository -Location https://www.nuget.org/api/v2 -Force
+Install-Package Microsoft.Web.WebView2 -Scope CurrentUser -RequiredVersion 1.0.1901.177 -Source nugetRepository -Force
+```
+
 ## Installing
 
 - **Windows VST3:** copy `Sphere Visualizer.vst3` to `C:\Program Files\Common Files\VST3`
