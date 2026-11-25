@@ -12,6 +12,7 @@ FetchContent_Declare(JUCE
     GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(JUCE)
 
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5) # libogg 1.3.5 declares an old minimum that CMake 4 rejects
 # Opus decoding (JUCE has no Opus reader): Xiph's libogg + libopus, and opusfile built from source.
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(INSTALL_DOCS OFF CACHE BOOL "" FORCE)
@@ -22,12 +23,9 @@ set(OPUS_INSTALL_CMAKE_CONFIG_MODULE OFF CACHE BOOL "" FORCE)
 set(OPUS_DISABLE_INTRINSICS ON CACHE BOOL "" FORCE) # keeps universal (arm64 + x86_64) Mac builds simple
 FetchContent_Declare(ogg GIT_REPOSITORY https://github.com/xiph/ogg.git GIT_TAG v1.3.5 GIT_SHALLOW TRUE)
 FetchContent_Declare(opus GIT_REPOSITORY https://github.com/xiph/opus.git GIT_TAG v1.5.2 GIT_SHALLOW TRUE)
-FetchContent_Declare(opusfile GIT_REPOSITORY https://github.com/xiph/opusfile.git GIT_TAG v0.12 GIT_SHALLOW TRUE)
-FetchContent_MakeAvailable(ogg opus)
-FetchContent_GetProperties(opusfile)
-if(NOT opusfile_POPULATED)
-    FetchContent_Populate(opusfile)
-endif()
+FetchContent_Declare(opusfile GIT_REPOSITORY https://github.com/xiph/opusfile.git GIT_TAG v0.12 GIT_SHALLOW TRUE
+    SOURCE_SUBDIR no-cmake-build) # download only; built below
+FetchContent_MakeAvailable(ogg opus opusfile)
 add_library(sphere_opusfile STATIC
     ${opusfile_SOURCE_DIR}/src/info.c
     ${opusfile_SOURCE_DIR}/src/internal.c
