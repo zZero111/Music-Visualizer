@@ -1,0 +1,844 @@
+<title>Sphere Visualizer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: full-bleed WebGL stage + a tabbed plugin-style rack (right on desktop, below on phones). Single dark look by choice. */
+:root {
+  --bg: #06070b;
+  --panel: #0d0f16;
+  --raise: #161927;
+  --line: #252a3b;
+  --fg: #e6e8f2;
+  --dim: #868ca3;
+  --accent: #7cf3ff;
+  --accent2: #7a5cff;
+  --rec: #ff3b5c;
+  --display: 'Space Grotesk', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--display); overflow: hidden; }
+button, select, input { font-family: inherit; }
+.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 360px; }
+body.panel-hidden .app { grid-template-columns: minmax(0, 1fr) 0; }
+body.panel-hidden .rack { display: none; }
+.stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #000; }
+#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; }
+#logo { position: absolute; pointer-events: none; display: none; }
+.topbar { position: absolute; top: 0; left: 0; right: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; pointer-events: none; z-index: 2; }
+.topbar > * { pointer-events: auto; }
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.brand b { font-weight: 700; letter-spacing: 0.28em; font-size: 15px; }
+.brand span { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+.btn { font: 500 13px var(--display); color: var(--fg); background: rgba(22, 25, 39, 0.85); border: 1px solid var(--line); border-radius: 8px;
+  padding: 7px 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.btn:hover { border-color: var(--accent); }
+.btn:focus-visible, select:focus-visible, input:focus-visible, .chip:focus-visible, .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.primary { background: var(--accent); color: #041014; border-color: var(--accent); font-weight: 700; }
+.btn.rec .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--rec); }
+.btn.rec.on { border-color: var(--rec); color: #fff; background: rgba(255, 59, 92, 0.25); }
+.btn.rec.on .dot { animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0.2; } }
+.presetnav { display: inline-flex; align-items: center; gap: 2px; background: rgba(22, 25, 39, 0.85); border: 1px solid var(--line); border-radius: 8px; }
+.presetnav .btn { border: 0; background: transparent; padding: 7px 9px; }
+.presetnav span { font-size: 13px; min-width: 92px; text-align: center; }
+.status { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); right: 16px; bottom: 12px; font-family: var(--mono); font-size: 11px; color: var(--dim); z-index: 2; }
+
+.rack { background: var(--panel); border-left: 1px solid var(--line); min-height: 0; display: flex; flex-direction: column; }
+.chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 12px 16px 10px; padding-right: max(16px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line); }
+.chip { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--raise); color: var(--fg);
+  padding: 5px 7px; text-align: left; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.chip b { font: 600 11px var(--mono); display: block; }
+.chip small { font-size: 10px; color: var(--dim); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip .lv { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--accent); }
+.chip.off { opacity: 0.45; }
+.chiphint { grid-column: 1 / -1; font-size: 11px; color: var(--dim); margin: 2px 0 0; }
+.ghost { position: fixed; z-index: 50; pointer-events: none; padding: 5px 9px; border-radius: 7px; background: var(--accent); color: #041014; font: 600 12px var(--mono); transform: translate(-50%, -120%); }
+.tabs { display: flex; gap: 2px; padding: 8px 12px 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tab { border: 0; background: none; color: var(--dim); font-size: 13px; font-weight: 500; padding: 8px 10px; cursor: pointer; border-bottom: 2px solid transparent; }
+.tab[aria-selected=true] { color: var(--fg); border-bottom-color: var(--accent); }
+.panes { overflow-y: auto; min-height: 0; flex: 1; }
+.pane { padding-block: 14px 28px; padding-left: 16px; padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 18px; }
+.sec { display: flex; flex-direction: column; gap: 9px; }
+.sec h3 { font-size: 11px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); margin: 0; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.seg.four { grid-template-columns: repeat(4, 1fr); }
+.seg button { border: 1px solid var(--line); background: var(--raise); color: var(--fg); border-radius: 7px; padding: 7px 4px; font-size: 12px; cursor: pointer; }
+.seg button[aria-pressed=true] { border-color: var(--accent); color: var(--accent); }
+.prow { display: grid; grid-template-columns: 98px minmax(0, 1fr) 44px; gap: 8px; align-items: center; font-size: 13px; border-radius: 6px; padding: 2px 4px; margin: 0 -4px; }
+.prow.drop { background: rgba(124, 243, 255, 0.12); outline: 1px dashed var(--accent); }
+.prow .badges { grid-column: 2 / 4; display: flex; gap: 4px; flex-wrap: wrap; margin-top: -4px; }
+.prow .badges:empty { display: none; }
+.badge { font: 600 10px var(--mono); padding: 1px 5px; border-radius: 4px; background: var(--raise); border: 1px solid var(--line); color: var(--accent); cursor: pointer; }
+output { font-family: var(--mono); font-size: 11px; color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); min-width: 0; }
+select, input[type=number], input[type=text] { font: 12px var(--mono); color: var(--fg); background: var(--raise); border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; width: 100%; min-width: 0; }
+.mod { border: 1px solid var(--line); border-radius: 9px; padding: 10px; display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 7px 10px; align-items: center; font-size: 12px; }
+.mod.sel { border-color: var(--accent); }
+.mod .hd { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
+.mod .hd b { font: 600 12px var(--mono); }
+.mod .hd .mlv { flex: 1; height: 5px; background: var(--raise); border-radius: 3px; overflow: hidden; }
+.mod .hd .mlv i { display: block; height: 100%; width: 0; background: var(--accent); }
+.mod .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.mod[data-off] > :not(.hd) { opacity: 0.4; }
+.grid5 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.pbtn { border: 1px solid var(--line); background: var(--raise); color: var(--fg); border-radius: 8px; padding: 8px 6px 7px; cursor: pointer; text-align: left; font-size: 12px; display: flex; flex-direction: column; gap: 6px; }
+.pbtn i { display: block; height: 18px; border-radius: 4px; }
+.pbtn[aria-pressed=true] { border-color: var(--accent); }
+.urow { display: flex; gap: 6px; }
+.ulist { display: flex; flex-direction: column; gap: 4px; }
+.ulist div { display: flex; gap: 6px; align-items: center; }
+.ulist div button:first-child { flex: 1; text-align: left; }
+.colors { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.colors label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dim); }
+input[type=color] { width: 100%; height: 34px; border: 1px solid var(--line); border-radius: 7px; background: var(--raise); padding: 2px; }
+.themes { display: flex; flex-wrap: wrap; gap: 8px; }
+.sw { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.check { display: inline-flex; gap: 7px; align-items: center; font-size: 13px; cursor: pointer; }
+.note { font-size: 12px; line-height: 1.55; color: var(--dim); margin: 0; }
+.row2 { display: grid; grid-template-columns: 98px minmax(0, 1fr); gap: 8px; align-items: center; font-size: 13px; }
+.plugin-only { display: none !important; }
+body.in-plugin .web-only { display: none !important; }
+body.in-plugin .plugin-only { display: revert !important; }
+@media (max-width: 760px) {
+  .app, body.panel-hidden .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 50%); }
+  body.panel-hidden .app { grid-template-rows: minmax(0, 1fr) 0; }
+  .rack { border-left: 0; border-top: 1px solid var(--line); }
+  .chips { padding-left: max(16px, env(safe-area-inset-left, 0px)); }
+  .pane { padding-left: max(16px, env(safe-area-inset-left, 0px)); }
+  .brand span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .btn.rec.on .dot { animation: none; } }
+</style>
+
+<div class="app">
+  <div class="stage" id="stage">
+    <canvas id="gl" aria-label="Audio reactive visual"></canvas>
+    <img id="logo" alt="">
+    <div class="topbar">
+      <div class="brand"><b>SPHERE</b><span id="sub">audio visualizer &middot; preview</span></div>
+      <div class="presetnav" aria-label="Preset">
+        <button class="btn" id="prev" type="button" aria-label="Previous preset">&lsaquo;</button>
+        <span id="pname">Nebula</span>
+        <button class="btn" id="next" type="button" aria-label="Next preset">&rsaquo;</button>
+      </div>
+      <button class="btn primary web-only" id="play" type="button">&#9654; Play demo beat</button>
+      <label class="btn web-only" for="file">Load audio</label>
+      <input id="file" type="file" accept="audio/*" hidden>
+      <button class="btn rec" id="rec" type="button"><span class="dot"></span><span id="rect">Record</span></button>
+      <button class="btn" id="hide" type="button" aria-pressed="false">Hide panel</button>
+    </div>
+    <div class="status" id="status">Preview motion. Press Play to hear the demo beat.</div>
+  </div>
+
+  <aside class="rack" aria-label="Controls">
+    <div class="chips" id="chips"></div>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="visual" aria-selected="true">Visual</button>
+      <button class="tab" role="tab" data-tab="mods" aria-selected="false">Modifiers</button>
+      <button class="tab" role="tab" data-tab="color" aria-selected="false">Colour</button>
+      <button class="tab" role="tab" data-tab="presets" aria-selected="false">Presets</button>
+      <button class="tab" role="tab" data-tab="record" aria-selected="false">Record</button>
+    </div>
+    <div class="panes">
+      <div class="pane" data-pane="visual">
+        <section class="sec"><h3>Shape</h3><div class="seg" id="shapes"></div></section>
+        <section class="sec"><h3>Parameters</h3><div id="vis" style="display:flex;flex-direction:column;gap:6px"></div></section>
+        <section class="sec"><h3>Response</h3>
+          <div class="prow"><label for="sens">Sensitivity</label><input id="sens" type="range" min="0.2" max="3" step="0.01"><output id="sensv"></output></div>
+          <div class="prow"><label for="smooth">Smoothing</label><input id="smooth" type="range" min="0" max="1" step="0.01"><output id="smoothv"></output></div>
+        </section>
+        <section class="sec"><h3>Performance</h3>
+          <div class="row2"><span>Mesh density</span><div class="seg four" id="density"></div></div>
+          <div class="row2"><span>Render scale</span><div class="seg four" id="rscale"></div></div>
+        </section>
+      </div>
+
+      <div class="pane" data-pane="mods" hidden>
+        <p class="note">Each modifier follows one frequency range of your audio (or a steady LFO) and pushes one parameter up or down. Drag a chip above onto any parameter on the Visual tab, or set it here.</p>
+        <div id="mods" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+
+      <div class="pane" data-pane="color" hidden>
+        <section class="sec"><h3>Quick themes</h3><div class="themes" id="themes"></div></section>
+        <section class="sec"><h3>Colours</h3>
+          <div class="colors">
+            <label>Core<input type="color" id="ca"></label>
+            <label>Edge<input type="color" id="cb"></label>
+            <label>Background<input type="color" id="cbg"></label>
+          </div>
+          <label class="check"><input type="checkbox" id="transp"> Transparent background in recordings (WebM)</label>
+        </section>
+        <section class="sec"><h3>Logo</h3>
+          <div class="urow"><label class="btn" for="logofile">Choose image</label><input id="logofile" type="file" accept="image/*" hidden><button class="btn" id="logoclear" type="button">Remove</button></div>
+          <div class="row2"><span>Position</span><select id="logopos"><option value="0">Top left</option><option value="1">Top right</option><option value="2">Bottom left</option><option value="3">Bottom right</option><option value="4">Centre</option></select></div>
+          <div class="prow"><label for="logosize">Size</label><input id="logosize" type="range" min="0.05" max="0.6" step="0.01"><output id="logosizev"></output></div>
+          <div class="prow"><label for="logoop">Opacity</label><input id="logoop" type="range" min="0.1" max="1" step="0.01"><output id="logoopv"></output></div>
+          <p class="note">The logo is drawn into your recordings too.</p>
+        </section>
+      </div>
+
+      <div class="pane" data-pane="presets" hidden>
+        <section class="sec"><h3>Factory</h3><div class="grid5" id="factory"></div></section>
+        <section class="sec"><h3>Your presets</h3>
+          <div class="urow"><input type="text" id="uname" placeholder="Preset name" maxlength="28" aria-label="Preset name"><button class="btn" id="usave" type="button">Save</button></div>
+          <div class="ulist" id="ulist"></div>
+        </section>
+        <section class="sec"><h3>Auto play</h3>
+          <div class="row2"><span>Change every</span><select id="cycle"><option value="0">Off</option><option value="8">8 seconds</option><option value="16">16 seconds</option><option value="32">32 seconds</option><option value="64">64 seconds</option></select></div>
+        </section>
+      </div>
+
+      <div class="pane" data-pane="record" hidden>
+        <section class="sec"><h3>Format</h3><div class="seg" id="rformat"></div></section>
+        <section class="sec"><h3>Resolution</h3><div class="seg four" id="rres"></div></section>
+        <section class="sec"><h3>Frame rate</h3><div class="seg" id="rfps"></div></section>
+        <p class="note" id="recnote">Recordings include the audio you're playing. High resolutions and frame rates depend on your computer's graphics card; if the video stutters, step down one.</p>
+        <p class="note plugin-only">In the plugin, videos are saved to Movies/Sphere Visualizer with a matching WAV of the track, ready to line up in any video editor.</p>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+// ===== Parameter model (must match plugin/Source/PluginProcessor.h) =====
+const SHAPES = ['Sphere', 'Cube', 'Diamond', 'Torus', 'Knot', 'Plane'];
+const DENSITY = ['Low', 'Medium', 'High', 'Ultra'];
+const RSCALE = [0.5, 0.75, 1, 1.5];
+const VIS = [
+  { id: 'zoom', name: 'Zoom', min: 0.4, max: 2, def: 1 },
+  { id: 'disp', name: 'Displacement', min: 0, max: 1, def: 0.2 },
+  { id: 'detail', name: 'Detail', min: 0.3, max: 6, def: 1.5 },
+  { id: 'flow', name: 'Flow speed', min: 0, max: 3, def: 0.4 },
+  { id: 'spin', name: 'Spin', min: -2, max: 2, def: 0.15 },
+  { id: 'tilt', name: 'Tilt', min: -1.5, max: 1.5, def: 0.2 },
+  { id: 'twist', name: 'Twist', min: -3, max: 3, def: 0 },
+  { id: 'hue', name: 'Hue shift', min: 0, max: 1, def: 0 },
+  { id: 'glow', name: 'Glow', min: 0, max: 2, def: 0.5 },
+  { id: 'wire', name: 'Wireframe', min: 0, max: 1, def: 0.3 },
+  { id: 'particles', name: 'Particles', min: 0, max: 1, def: 0.5 },
+];
+const VI = Object.fromEntries(VIS.map((v, i) => [v.id, i]));
+const RANGES = [['Sub', 20, 60], ['Bass', 60, 150], ['Low mid', 150, 800], ['Mid', 800, 2000], ['High mid', 2000, 4000], ['Presence', 4000, 8000], ['Air', 8000, 16000]];
+const NMOD = 8;
+
+const P = { shape: 0, density: 2, rscale: 2, sens: 1.2, smooth: 0.55 };
+VIS.forEach(v => (P[v.id] = v.def));
+for (let i = 1; i <= NMOD; i++) Object.assign(P, { ['m' + i + '_on']: 0, ['m' + i + '_src']: 0, ['m' + i + '_lo']: 60, ['m' + i + '_hi']: 150, ['m' + i + '_rate']: 0.5, ['m' + i + '_tgt']: 0, ['m' + i + '_amt']: 0.5 });
+
+// Non-automatable look/settings (saved with the plugin state as one JSON string)
+const UI = { a: '#3cf0ff', b: '#7a5cff', bg: '#06070b', transparent: false, logo: null, logoPos: 3, logoSize: 0.16, logoOpacity: 0.9,
+  recFormat: 0, recRes: 1, recFps: 1, preset: 'Nebula', cycle: 0 };
+
+// ===== Factory presets =====
+// mods: [rangeIndex | 'lfo', target, amount, lfoRateHz]
+const FX = (name, shape, a, b, bg, vis, mods) => ({ name, shape, a, b, bg, vis, mods });
+const FACTORY = [
+  FX('Nebula', 0, '#3cf0ff', '#7a5cff', '#06070b', { disp: 0.15, wire: 0.3 }, [[1, 'zoom', 0.45], [2, 'disp', 0.55], [4, 'detail', 0.25], [6, 'particles', 0.8], [5, 'hue', 0.25]]),
+  FX('Magma', 0, '#ffb347', '#ff2e4d', '#0b0505', { disp: 0.35, detail: 1.1, flow: 0.9, glow: 0.8, wire: 0.1 }, [[1, 'disp', 0.6], [3, 'glow', 0.5], [0, 'zoom', 0.3]]),
+  FX('Ice Cube', 1, '#bdf6ff', '#3c8bff', '#05080d', { disp: 0.05, wire: 0.7, spin: 0.3, tilt: 0.5 }, [[1, 'zoom', 0.4], [5, 'spin', 0.5], [6, 'particles', 0.7]]),
+  FX('Prism', 2, '#ff6ad5', '#5d7bff', '#08060d', { disp: 0.08, wire: 0.5, spin: 0.4 }, [[1, 'twist', 0.35], [5, 'hue', 0.4], [2, 'glow', 0.4]]),
+  FX('Halo', 3, '#ffe08a', '#ffffff', '#0a0906', { disp: 0.1, tilt: 0.9, wire: 0.25 }, [[1, 'zoom', 0.4], [3, 'twist', 0.3], [6, 'particles', 0.8]]),
+  FX('Knotwork', 4, '#c4ff3c', '#00b89c', '#050a07', { disp: 0.12, zoom: 0.9, spin: 0.35 }, [[1, 'disp', 0.5], [5, 'spin', 0.5], [3, 'glow', 0.4]]),
+  FX('Terrain', 5, '#3cf0ff', '#2348ff', '#04060c', { disp: 0.45, detail: 0.9, tilt: 0.6, spin: 0.05, wire: 0.6, zoom: 0.8 }, [[1, 'disp', 0.6], [3, 'detail', 0.3], [6, 'particles', 0.6]]),
+  FX('Pulse', 0, '#ffffff', '#7d8396', '#000000', { disp: 0.04, wire: 0.15, glow: 0.3 }, [[1, 'zoom', 0.8], [0, 'glow', 0.7]]),
+  FX('Jelly', 0, '#ff8adf', '#ffd36a', '#0c0610', { disp: 0.45, detail: 0.8, flow: 0.6, wire: 0 }, [[1, 'disp', 0.4], ['lfo', 'twist', 0.4, 0.15], [3, 'zoom', 0.2]]),
+  FX('Static', 0, '#ffffff', '#ff2e4d', '#050505', { disp: 0.12, detail: 5, flow: 2, wire: 0.2 }, [[5, 'disp', 0.6], [1, 'zoom', 0.3], [6, 'hue', 0.2]]),
+  FX('Deep Sea', 0, '#00ffc6', '#0b3cff', '#020818', { disp: 0.25, detail: 1.2, flow: 0.3, glow: 0.7 }, [['lfo', 'tilt', 0.4, 0.08], [1, 'glow', 0.6], [2, 'disp', 0.4], [6, 'particles', 0.9]]),
+  FX('Solar', 0, '#ffe600', '#ff6a00', '#0d0700', { disp: 0.2, glow: 1.3, flow: 0.7 }, [[1, 'glow', 0.6], [3, 'disp', 0.5], [0, 'zoom', 0.35]]),
+  FX('Glass Cube', 1, '#ffffff', '#9ad7ff', '#05070a', { disp: 0, wire: 1, glow: 0.2, particles: 0.2 }, [['lfo', 'spin', 0.6, 0.1], [1, 'zoom', 0.35], [4, 'glow', 0.5]]),
+  FX('Spiral', 3, '#ff6ad5', '#3cf0ff', '#07060c', { twist: 1.6, disp: 0.1, tilt: 0.6 }, [[1, 'twist', 0.5], [3, 'zoom', 0.3], ['lfo', 'hue', 0.3, 0.05]]),
+  FX('Crystal', 2, '#ffffff', '#4fa8ff', '#04060a', { disp: 0.03, wire: 0.8, glow: 0.4, spin: 0.25 }, [[5, 'glow', 0.7], [1, 'zoom', 0.35], [6, 'particles', 0.9]]),
+  FX('Wave Grid', 5, '#7cf3ff', '#7a5cff', '#05060b', { disp: 0.3, detail: 1.4, wire: 1, tilt: 0.5, spin: 0, zoom: 0.8 }, [[2, 'disp', 0.6], [1, 'zoom', 0.15], [5, 'detail', 0.3]]),
+  FX('Orbit', 4, '#b48cff', '#3a1cff', '#06040d', { disp: 0.08, zoom: 0.85, spin: 0.5 }, [[1, 'zoom', 0.4], ['lfo', 'hue', 0.5, 0.04], [5, 'particles', 0.8]]),
+  FX('Ghost', 0, '#e8ecff', '#5c6480', '#020203', { disp: 0.2, glow: 0.15, wire: 0.5, particles: 0.2 }, [[3, 'wire', 0.5], [1, 'disp', 0.4]]),
+  FX('Acid', 0, '#c4ff3c', '#ff00b8', '#050505', { disp: 0.25, detail: 3, flow: 1.5 }, [[4, 'disp', 0.6], [1, 'zoom', 0.35], [5, 'hue', 0.5]]),
+  FX('Bloom', 0, '#ff6ad5', '#5d7bff', '#08050c', { disp: 0.15, glow: 1.4, wire: 0.15 }, [[1, 'glow', 0.6], [6, 'particles', 1], [2, 'disp', 0.4]]),
+  FX('Storm', 0, '#9fd8ff', '#3b4a66', '#030408', { disp: 0.3, detail: 2.2, flow: 1.2, wire: 0.4 }, [[5, 'disp', 0.6], [1, 'spin', 0.6], [0, 'glow', 0.6]]),
+  FX('Ripple', 5, '#ff8a5c', '#ff3d9a', '#0b0507', { disp: 0.35, detail: 0.7, tilt: 0.7, wire: 0.3, zoom: 0.8 }, [[1, 'disp', 0.6], ['lfo', 'twist', 0.3, 0.07], [5, 'particles', 0.6]]),
+  FX('Vortex', 3, '#ff2e4d', '#2a0010', '#000000', { twist: -1.2, tilt: 0.3, disp: 0.12 }, [[1, 'spin', 0.7], [3, 'twist', 0.5], [0, 'glow', 0.5]]),
+  FX('Heartbeat', 0, '#ff2e4d', '#ff8a9a', '#080203', { disp: 0.06, glow: 0.5, wire: 0.1 }, [[1, 'zoom', 1], [0, 'glow', 0.8], [3, 'disp', 0.2]]),
+  FX('Drift', 4, '#ffd1f0', '#a8e6ff', '#0a0b12', { disp: 0.15, flow: 0.2, spin: 0.1, zoom: 0.85 }, [['lfo', 'disp', 0.4, 0.06], ['lfo', 'hue', 0.4, 0.03], ['lfo', 'zoom', 0.15, 0.11]]),
+];
+const THEMES = [['#3cf0ff', '#7a5cff'], ['#ffb347', '#ff2e4d'], ['#c4ff3c', '#00b89c'], ['#ff6ad5', '#5d7bff'], ['#ffffff', '#7d8396'], ['#ffe600', '#ff6a00'], ['#00ffc6', '#0b3cff']];
+
+// ===== Host bridge =====
+const juce = () => window.__JUCE__ && window.__JUCE__.backend;
+const inPlugin = () => document.body.classList.contains('in-plugin');
+function sendParam(id) { if (juce()) juce().emitEvent('param', { id, value: +P[id] }); }
+let uiTimer = 0;
+function saveUI() {
+  clearTimeout(uiTimer);
+  uiTimer = setTimeout(() => {
+    if (juce()) juce().emitEvent('ui', JSON.stringify(UI));
+    else try { localStorage.setItem('sphere-ui', JSON.stringify(UI)); } catch (e) {}
+  }, 250);
+}
+function setParam(id, v) { P[id] = v; sendParam(id); render(); }
+
+// ===== Build UI =====
+const fmt = (v, d = 2) => (+v).toFixed(d);
+$('shapes').innerHTML = SHAPES.map((s, i) => `<button type="button" data-v="${i}">${s}</button>`).join('');
+$('density').innerHTML = DENSITY.map((s, i) => `<button type="button" data-v="${i}">${s}</button>`).join('');
+$('rscale').innerHTML = RSCALE.map((s, i) => `<button type="button" data-v="${i}">${s * 100}%</button>`).join('');
+$('rformat').innerHTML = ['Landscape 16:9', 'Vertical 9:16', 'Square 1:1'].map((s, i) => `<button type="button" data-v="${i}">${s}</button>`).join('');
+$('rres').innerHTML = ['720p', '1080p', '1440p', '4K'].map((s, i) => `<button type="button" data-v="${i}">${s}</button>`).join('');
+$('rfps').innerHTML = ['30 fps', '60 fps', '120 fps'].map((s, i) => `<button type="button" data-v="${i}">${s}</button>`).join('');
+$('vis').innerHTML = VIS.map(v => `<div class="prow" data-param="${v.id}"><label for="v_${v.id}">${v.name}</label>
+  <input id="v_${v.id}" type="range" min="${v.min}" max="${v.max}" step="0.01"><output id="o_${v.id}"></output><div class="badges" id="bd_${v.id}"></div></div>`).join('');
+$('chips').innerHTML = Array.from({ length: NMOD }, (_, k) => `<button type="button" class="chip" data-m="${k + 1}" id="chip${k + 1}"><b>M${k + 1}</b><small id="chipt${k + 1}"></small><span class="lv" id="chiplv${k + 1}"></span></button>`).join('')
+  + '<p class="chiphint">Drag a modifier onto a parameter, or tap it to edit.</p>';
+const rangeOpts = RANGES.map((r, i) => `<option value="${i}">${r[0]} ${r[1]}&ndash;${r[2] >= 1000 ? r[2] / 1000 + 'k' : r[2]}</option>`).join('') + '<option value="-1">Custom</option>';
+$('mods').innerHTML = Array.from({ length: NMOD }, (_, k) => { const i = k + 1; return `<div class="mod" id="mod${i}">
+  <div class="hd"><b>M${i}</b><label class="check"><input type="checkbox" id="m${i}_on"> On</label><span class="mlv"><i id="mlv${i}"></i></span></div>
+  <span>Source</span><select id="m${i}_src"><option value="0">Audio band</option><option value="1">LFO</option></select>
+  <span class="aud${i}">Range</span><select class="aud${i}" id="m${i}_preset">${rangeOpts}</select>
+  <span class="aud${i}">Hz</span><div class="two aud${i}"><input type="number" id="m${i}_lo" min="20" max="20000" aria-label="M${i} low Hz"><input type="number" id="m${i}_hi" min="20" max="20000" aria-label="M${i} high Hz"></div>
+  <span class="lfo${i}">Rate</span><div class="prow lfo${i}" style="grid-template-columns:minmax(0,1fr) 54px;margin:0;padding:0"><input type="range" id="m${i}_rate" min="0.02" max="8" step="0.01" aria-label="M${i} LFO rate"><output id="m${i}_ratev"></output></div>
+  <span>Target</span><select id="m${i}_tgt">${VIS.map((v, j) => `<option value="${j}">${v.name}</option>`).join('')}</select>
+  <span>Amount</span><div class="prow" style="grid-template-columns:minmax(0,1fr) 44px;margin:0;padding:0"><input type="range" id="m${i}_amt" min="-1" max="1" step="0.01" aria-label="M${i} amount"><output id="m${i}_amtv"></output></div>
+</div>`; }).join('');
+$('factory').innerHTML = FACTORY.map((p, i) => `<button type="button" class="pbtn" data-i="${i}"><i style="background:linear-gradient(90deg,${p.a},${p.b})"></i>${p.name}</button>`).join('');
+$('themes').innerHTML = THEMES.map((t, i) => `<button class="sw" type="button" data-i="${i}" aria-label="Theme ${i + 1}" style="background:linear-gradient(135deg,${t[0]},${t[1]})"></button>`).join('');
+
+// tabs
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === name));
+  document.querySelectorAll('.pane').forEach(p => (p.hidden = p.dataset.pane !== name));
+}
+document.querySelector('.tabs').addEventListener('click', e => { const t = e.target.closest('.tab'); if (t) showTab(t.dataset.tab); });
+
+// segmented controls
+function seg(id, fn) { $(id).addEventListener('click', e => { const b = e.target.closest('button'); if (b) fn(+b.dataset.v); }); }
+seg('shapes', v => setParam('shape', v));
+seg('density', v => setParam('density', v));
+seg('rscale', v => setParam('rscale', v));
+seg('rformat', v => { UI.recFormat = v; saveUI(); render(); });
+seg('rres', v => { UI.recRes = v; saveUI(); render(); });
+seg('rfps', v => { UI.recFps = v; saveUI(); render(); });
+
+let dragging = null;
+document.addEventListener('pointerdown', e => { if (e.target.matches && e.target.matches('input[type=range]')) dragging = e.target.id; });
+document.addEventListener('pointerup', () => { dragging = null; });
+VIS.forEach(v => $('v_' + v.id).addEventListener('input', e => setParam(v.id, +e.target.value)));
+$('sens').addEventListener('input', e => setParam('sens', +e.target.value));
+$('smooth').addEventListener('input', e => setParam('smooth', +e.target.value));
+for (let i = 1; i <= NMOD; i++) {
+  const k = 'm' + i + '_';
+  $(k + 'on').addEventListener('change', e => setParam(k + 'on', e.target.checked ? 1 : 0));
+  $(k + 'src').addEventListener('change', e => setParam(k + 'src', +e.target.value));
+  $(k + 'preset').addEventListener('change', e => { const r = RANGES[+e.target.value]; if (r) { setParam(k + 'lo', r[1]); setParam(k + 'hi', r[2]); } });
+  $(k + 'lo').addEventListener('change', e => setParam(k + 'lo', clamp(+e.target.value || 20, 20, 20000)));
+  $(k + 'hi').addEventListener('change', e => setParam(k + 'hi', clamp(+e.target.value || 20, 20, 20000)));
+  $(k + 'rate').addEventListener('input', e => setParam(k + 'rate', +e.target.value));
+  $(k + 'tgt').addEventListener('change', e => setParam(k + 'tgt', +e.target.value));
+  $(k + 'amt').addEventListener('input', e => setParam(k + 'amt', +e.target.value));
+}
+document.querySelectorAll('.badges').forEach(b => b.addEventListener('click', e => { const m = e.target.closest('.badge'); if (m) openMod(+m.dataset.m); }));
+function openMod(i) {
+  showTab('mods');
+  document.querySelectorAll('.mod').forEach(m => m.classList.toggle('sel', m.id === 'mod' + i));
+  $('mod' + i).scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// drag a modifier chip onto a parameter
+let drag = null;
+$('chips').addEventListener('pointerdown', e => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  drag = { m: +c.dataset.m, x: e.clientX, y: e.clientY, moved: false, ghost: null, over: null };
+  c.setPointerCapture(e.pointerId);
+});
+$('chips').addEventListener('pointermove', e => {
+  if (!drag) return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 6) {
+    drag.moved = true; showTab('visual');
+    drag.ghost = document.createElement('div'); drag.ghost.className = 'ghost'; drag.ghost.textContent = 'M' + drag.m; document.body.appendChild(drag.ghost);
+  }
+  if (!drag.moved) return;
+  drag.ghost.style.left = e.clientX + 'px'; drag.ghost.style.top = e.clientY + 'px';
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const row = el && el.closest('[data-param]');
+  if (drag.over && drag.over !== row) drag.over.classList.remove('drop');
+  drag.over = row; if (row) row.classList.add('drop');
+});
+function endDrag() {
+  if (!drag) return;
+  if (drag.moved) {
+    if (drag.over) {
+      const k = 'm' + drag.m + '_';
+      setParam(k + 'tgt', VI[drag.over.dataset.param]); setParam(k + 'on', 1);
+      if (Math.abs(P[k + 'amt']) < 0.05) setParam(k + 'amt', 0.5);
+      drag.over.classList.remove('drop');
+      setStatus('M' + drag.m + ' now drives ' + VIS[VI[drag.over.dataset.param]].name + '.');
+    }
+    drag.ghost.remove();
+  } else openMod(drag.m);
+  drag = null;
+}
+$('chips').addEventListener('pointerup', endDrag);
+$('chips').addEventListener('pointercancel', () => { if (drag && drag.ghost) drag.ghost.remove(); if (drag && drag.over) drag.over.classList.remove('drop'); drag = null; });
+
+// colours & logo
+$('themes').addEventListener('click', e => { const b = e.target.closest('.sw'); if (!b) return; const t = THEMES[+b.dataset.i]; UI.a = t[0]; UI.b = t[1]; saveUI(); render(); });
+[['ca', 'a'], ['cb', 'b'], ['cbg', 'bg']].forEach(([id, k]) => $(id).addEventListener('input', e => { UI[k] = e.target.value; saveUI(); render(); }));
+$('transp').addEventListener('change', e => { UI.transparent = e.target.checked; saveUI(); });
+$('logofile').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => { // downscale so it fits in the plugin's saved state
+    const s = Math.min(1, 512 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+    c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    UI.logo = c.toDataURL('image/png'); saveUI(); render(); URL.revokeObjectURL(img.src);
+  };
+  img.src = URL.createObjectURL(f);
+});
+$('logoclear').addEventListener('click', () => { UI.logo = null; saveUI(); render(); });
+$('logopos').addEventListener('change', e => { UI.logoPos = +e.target.value; saveUI(); render(); });
+$('logosize').addEventListener('input', e => { UI.logoSize = +e.target.value; saveUI(); render(); });
+$('logoop').addEventListener('input', e => { UI.logoOpacity = +e.target.value; saveUI(); render(); });
+
+// presets
+let userPresets = [];
+function snapshot(name) { const p = { name, P: { ...P }, a: UI.a, b: UI.b, bg: UI.bg }; return p; }
+function applyFactory(i) {
+  const f = FACTORY[i];
+  P.shape = f.shape; VIS.forEach(v => (P[v.id] = v.def)); Object.assign(P, f.vis);
+  for (let m = 1; m <= NMOD; m++) P['m' + m + '_on'] = 0;
+  f.mods.forEach((md, j) => {
+    const k = 'm' + (j + 1) + '_';
+    P[k + 'on'] = 1; P[k + 'tgt'] = VI[md[1]]; P[k + 'amt'] = md[2];
+    if (md[0] === 'lfo') { P[k + 'src'] = 1; P[k + 'rate'] = md[3]; } else { P[k + 'src'] = 0; P[k + 'lo'] = RANGES[md[0]][1]; P[k + 'hi'] = RANGES[md[0]][2]; }
+  });
+  UI.a = f.a; UI.b = f.b; UI.bg = f.bg; UI.preset = f.name;
+  pushAll();
+}
+function applyUser(p) {
+  Object.keys(P).forEach(k => { if (k in p.P && !['density', 'rscale'].includes(k)) P[k] = p.P[k]; });
+  UI.a = p.a; UI.b = p.b; UI.bg = p.bg; UI.preset = p.name; pushAll();
+}
+function pushAll() { Object.keys(P).forEach(sendParam); saveUI(); render(); setStatus('Preset: ' + UI.preset); }
+function allPresets() { return FACTORY.map((f, i) => ({ name: f.name, go: () => applyFactory(i) })).concat(userPresets.map(u => ({ name: u.name, go: () => applyUser(u) }))); }
+function stepPreset(d) { const all = allPresets(); let i = all.findIndex(p => p.name === UI.preset); i = (i + d + all.length) % all.length; all[i].go(); cycleAt = time + (+UI.cycle || 0); }
+$('prev').addEventListener('click', () => stepPreset(-1));
+$('next').addEventListener('click', () => stepPreset(1));
+$('factory').addEventListener('click', e => { const b = e.target.closest('.pbtn'); if (b) { applyFactory(+b.dataset.i); cycleAt = time + (+UI.cycle || 0); } });
+function saveUserPresets() {
+  if (juce()) juce().emitEvent('presets', JSON.stringify(userPresets));
+  else try { localStorage.setItem('sphere-presets', JSON.stringify(userPresets)); } catch (e) {}
+}
+$('usave').addEventListener('click', () => {
+  const name = ($('uname').value || '').trim() || 'My preset ' + (userPresets.length + 1);
+  userPresets = userPresets.filter(p => p.name !== name).concat(snapshot(name));
+  UI.preset = name; saveUserPresets(); saveUI(); $('uname').value = ''; render(); setStatus('Saved preset ' + name + '.');
+});
+$('ulist').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const p = userPresets[+b.dataset.i]; if (!p) return;
+  if (b.dataset.act === 'del') { userPresets.splice(+b.dataset.i, 1); saveUserPresets(); render(); } else applyUser(p);
+});
+$('cycle').addEventListener('change', e => { UI.cycle = +e.target.value; cycleAt = time + UI.cycle; saveUI(); });
+$('hide').addEventListener('click', () => { const h = document.body.classList.toggle('panel-hidden'); $('hide').textContent = h ? 'Show panel' : 'Hide panel'; $('hide').setAttribute('aria-pressed', h); });
+
+function render() {
+  const pr = (id, v) => document.querySelectorAll('#' + id + ' button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === Math.round(v)));
+  pr('shapes', P.shape); pr('density', P.density); pr('rscale', P.rscale); pr('rformat', UI.recFormat); pr('rres', UI.recRes); pr('rfps', UI.recFps);
+  VIS.forEach(v => { if (dragging !== 'v_' + v.id) $('v_' + v.id).value = P[v.id]; $('o_' + v.id).textContent = fmt(P[v.id]); $('bd_' + v.id).innerHTML = ''; });
+  if (dragging !== 'sens') $('sens').value = P.sens; $('sensv').textContent = fmt(P.sens) + 'x';
+  if (dragging !== 'smooth') $('smooth').value = P.smooth; $('smoothv').textContent = Math.round(P.smooth * 100) + '%';
+  for (let i = 1; i <= NMOD; i++) {
+    const k = 'm' + i + '_', on = +P[k + 'on'] > 0.5, lfo = Math.round(P[k + 'src']) === 1, tgt = VIS[Math.round(P[k + 'tgt'])] || VIS[0];
+    $(k + 'on').checked = on; $(k + 'src').value = lfo ? '1' : '0';
+    if (document.activeElement !== $(k + 'lo')) $(k + 'lo').value = Math.round(P[k + 'lo']);
+    if (document.activeElement !== $(k + 'hi')) $(k + 'hi').value = Math.round(P[k + 'hi']);
+    const ri = RANGES.findIndex(r => r[1] === Math.round(P[k + 'lo']) && r[2] === Math.round(P[k + 'hi']));
+    $(k + 'preset').value = String(ri);
+    if (dragging !== k + 'rate') $(k + 'rate').value = P[k + 'rate']; $(k + 'ratev').textContent = fmt(P[k + 'rate']) + ' Hz';
+    $(k + 'tgt').value = String(Math.round(P[k + 'tgt']));
+    if (dragging !== k + 'amt') $(k + 'amt').value = P[k + 'amt']; $(k + 'amtv').textContent = (P[k + 'amt'] > 0 ? '+' : '') + fmt(P[k + 'amt']);
+    document.querySelectorAll('.aud' + i).forEach(el => (el.hidden = lfo));
+    document.querySelectorAll('.lfo' + i).forEach(el => (el.hidden = !lfo));
+    if (on) $('mod' + i).removeAttribute('data-off'); else $('mod' + i).setAttribute('data-off', '');
+    $('chip' + i).classList.toggle('off', !on);
+    $('chipt' + i).textContent = on ? (lfo ? 'LFO' : rangeName(P[k + 'lo'], P[k + 'hi'])) + ' \u2192 ' + tgt.name : 'unused';
+    if (on) $('bd_' + tgt.id).insertAdjacentHTML('beforeend', `<span class="badge" data-m="${i}">M${i} ${P[k + 'amt'] > 0 ? '+' : ''}${fmt(P[k + 'amt'], 1)}</span>`);
+  }
+  $('ca').value = UI.a; $('cb').value = UI.b; $('cbg').value = UI.bg; $('transp').checked = !!UI.transparent;
+  $('logopos').value = String(UI.logoPos); $('logosize').value = UI.logoSize; $('logosizev').textContent = Math.round(UI.logoSize * 100) + '%';
+  $('logoop').value = UI.logoOpacity; $('logoopv').textContent = Math.round(UI.logoOpacity * 100) + '%';
+  $('cycle').value = String(UI.cycle || 0);
+  $('pname').textContent = UI.preset || 'Custom';
+  document.querySelectorAll('.pbtn').forEach(b => b.setAttribute('aria-pressed', FACTORY[+b.dataset.i].name === UI.preset));
+  $('ulist').innerHTML = userPresets.map((p, i) => `<div><button class="btn" type="button" data-i="${i}">${p.name.replace(/[<&>"]/g, '')}</button><button class="btn" type="button" data-i="${i}" data-act="del" aria-label="Delete ${p.name.replace(/[<&>"]/g, '')}">Delete</button></div>`).join('') || '<p class="note">No saved presets yet.</p>';
+  document.documentElement.style.setProperty('--accent', UI.a);
+  layoutLogo();
+  if (sceneReady) rebuildIfNeeded();
+}
+function rangeName(lo, hi) { const r = RANGES.find(r => r[1] === Math.round(lo) && r[2] === Math.round(hi)); return r ? r[0] : Math.round(lo) + '-' + Math.round(hi); }
+
+// ===== three.js scene =====
+let sceneReady = false;
+const canvas = $('gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, premultipliedAlpha: false });
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.set(0, 0, 5.2);
+
+const NOISE = `
+vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
+vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
+vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+float snoise(vec3 v){
+  const vec2 C=vec2(1.0/6.0,1.0/3.0); const vec4 D=vec4(0.0,0.5,1.0,2.0);
+  vec3 i=floor(v+dot(v,C.yyy)); vec3 x0=v-i+dot(i,C.xxx);
+  vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g; vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
+  vec3 x1=x0-i1+C.xxx; vec3 x2=x0-i2+C.yyy; vec3 x3=x0-D.yyy;
+  i=mod289(i);
+  vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+  float n_=0.142857142857; vec3 ns=n_*D.wyz-D.xzx;
+  vec4 j=p-49.0*floor(p*ns.z*ns.z); vec4 x_=floor(j*ns.z); vec4 y_=floor(j-7.0*x_);
+  vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy; vec4 h=1.0-abs(x)-abs(y);
+  vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
+  vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0; vec4 sh=-step(h,vec4(0.0));
+  vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+  vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
+  vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+  p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+  vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); m=m*m;
+  return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+}`;
+const VERT = NOISE + `
+uniform float uTime, uDistort, uFreq, uTwist, uMap;
+varying vec3 vN; varying vec3 vView; varying float vD;
+vec3 mapShape(vec3 p){
+  if (uMap > 1.5) return p / (abs(p.x) + abs(p.y) + abs(p.z)) * 1.6;
+  if (uMap > 0.5) return p / max(max(abs(p.x), abs(p.y)), abs(p.z));
+  return p;
+}
+void main(){
+  vec3 b = mapShape(position);
+  vec3 nrm = normal;
+  float n = snoise(position*uFreq*0.8 + vec3(uTime*0.35, uTime*0.2, 0.0));
+  n += 0.5*snoise(position*uFreq*1.9 - vec3(0.0, uTime*0.5, uTime*0.3));
+  float d = n*uDistort;
+  vec3 p = b + nrm*d; vD = d;
+  float a = uTwist*p.y; float c = cos(a), s = sin(a);
+  mat2 r = mat2(c, -s, s, c);
+  p.xz = r*p.xz; nrm.xz = r*nrm.xz;
+  vec4 mv = modelViewMatrix*vec4(p, 1.0);
+  vView = normalize(-mv.xyz);
+  vN = normalize(normalMatrix*nrm);
+  gl_Position = projectionMatrix*mv;
+}`;
+const FRAG = `
+uniform vec3 uA, uB; uniform float uGlow, uShift, uAlpha, uFlat;
+varying vec3 vN; varying vec3 vView; varying float vD;
+vec3 hueRot(vec3 c, float a){ const vec3 k = vec3(0.57735); float ca = cos(a); return c*ca + cross(k,c)*sin(a) + k*dot(k,c)*(1.0-ca); }
+void main(){
+  float f = pow(1.0 - abs(dot(vN, vView)), 2.2);
+  vec3 col = mix(uA, uB, clamp(vD*1.6 + 0.5, 0.0, 1.0));
+  col = max(hueRot(col, uShift*6.2831853), 0.0);
+  vec3 c = col*(0.18 + 0.3*uFlat + 1.1*f)*(0.55 + uGlow) + col*smoothstep(0.05, 0.45, vD)*0.9;
+  gl_FragColor = vec4(c, uAlpha);
+}`;
+const U = {
+  uTime: { value: 0 }, uDistort: { value: 0.1 }, uFreq: { value: 1.5 }, uTwist: { value: 0 }, uMap: { value: 0 },
+  uA: { value: new THREE.Color(UI.a) }, uB: { value: new THREE.Color(UI.b) }, uGlow: { value: 0.4 }, uShift: { value: 0 }, uFlat: { value: 0 },
+};
+const solidMat = new THREE.ShaderMaterial({ uniforms: { ...U, uAlpha: { value: 1 } }, vertexShader: VERT, fragmentShader: FRAG, side: THREE.DoubleSide });
+const wireMat = new THREE.ShaderMaterial({ uniforms: { ...U, uAlpha: { value: 0.3 } }, vertexShader: VERT, fragmentShader: FRAG,
+  wireframe: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+const ball = new THREE.Group(); scene.add(ball);
+const solid = new THREE.Mesh(new THREE.BufferGeometry(), solidMat);
+const wire = new THREE.Mesh(new THREE.BufferGeometry(), wireMat);
+wire.scale.setScalar(1.015); ball.add(solid, wire);
+
+function buildGeo(shape, d, forWire) {
+  if (shape <= 2) return new THREE.IcosahedronGeometry(1.25, forWire ? [6, 10, 16, 22][d] : [20, 40, 72, 110][d]);
+  if (shape === 3) return new THREE.TorusGeometry(1.15, 0.45, forWire ? [10, 14, 20, 28][d] : [40, 80, 140, 200][d], forWire ? [28, 40, 56, 80][d] : [100, 200, 340, 480][d]);
+  if (shape === 4) return new THREE.TorusKnotGeometry(0.95, 0.3, forWire ? [60, 90, 120, 180][d] : [200, 400, 700, 1000][d], forWire ? [6, 8, 10, 14][d] : [24, 40, 64, 90][d]);
+  const n = forWire ? [20, 32, 48, 64][d] : [80, 140, 220, 320][d];
+  const g = new THREE.PlaneGeometry(4, 4, n, n); g.rotateX(-Math.PI / 2); return g;
+}
+let builtKey = '';
+function rebuildIfNeeded() {
+  const s = Math.round(P.shape), d = Math.round(P.density), key = s + ':' + d;
+  if (key === builtKey) return;
+  builtKey = key;
+  solid.geometry.dispose(); wire.geometry.dispose();
+  solid.geometry = buildGeo(s, d, false); wire.geometry = buildGeo(s, d, true);
+  U.uMap.value = s === 1 ? 1 : s === 2 ? 2 : 0; U.uFlat.value = s === 5 ? 1 : 0;
+  solidMat.uniforms.uAlpha.value = 1;
+}
+
+function radialTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d'); const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c);
+}
+const tex = radialTex();
+const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.5 }));
+halo.scale.setScalar(6); halo.position.z = -1.5; scene.add(halo);
+const N = 2000, pos = new Float32Array(N * 3);
+for (let i = 0; i < N; i++) {
+  const r = 1.8 + Math.pow(Math.random(), 1.6) * 1.8, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+  pos[i * 3] = r * Math.sin(ph) * Math.cos(th); pos[i * 3 + 1] = r * Math.cos(ph) * 0.55; pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+}
+const pgeo = new THREE.BufferGeometry(); pgeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+const pmat = new THREE.PointsMaterial({ map: tex, size: 0.06, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.8 });
+const points = new THREE.Points(pgeo, pmat); scene.add(points);
+sceneReady = true; rebuildIfNeeded();
+
+// sizing (stage size, or the recording size while recording)
+let recDims = null;
+function resize() {
+  const r = canvas.parentElement.getBoundingClientRect();
+  if (r.width < 2 || r.height < 2) return;
+  let w = r.width, h = r.height;
+  if (recDims) { renderer.setPixelRatio(1); renderer.setSize(recDims[0], recDims[1], false); w = recDims[0]; h = recDims[1]; }
+  else { renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2) * RSCALE[Math.round(P.rscale)]); renderer.setSize(w, h, false); }
+  camera.aspect = w / h;
+  camera.position.z = 5.2 * Math.max(1, 0.95 / Math.max(camera.aspect, 0.4)) * (!recDims && h < 560 ? 1.2 : 1);
+  camera.updateProjectionMatrix();
+  layoutLogo();
+}
+addEventListener('resize', resize);
+if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas.parentElement);
+let lastScale = -1;
+
+// logo on screen (and into recordings)
+const logoImg = $('logo'); let logoLoaded = null;
+function logoRect(W, H) {
+  if (!UI.logo || !logoImg.naturalWidth) return null;
+  const w = W * UI.logoSize, h = w * logoImg.naturalHeight / logoImg.naturalWidth, m = Math.min(W, H) * 0.04;
+  const x = [m, W - w - m, m, W - w - m, (W - w) / 2][UI.logoPos], y = [m, m, H - h - m, H - h - m, (H - h) / 2][UI.logoPos];
+  return [x, y, w, h];
+}
+function layoutLogo() {
+  if (!UI.logo) { logoImg.style.display = 'none'; return; }
+  if (logoLoaded !== UI.logo) { logoLoaded = UI.logo; logoImg.onload = layoutLogo; logoImg.src = UI.logo; return; }
+  // map onto the displayed canvas area (object-fit: contain)
+  const s = canvas.parentElement.getBoundingClientRect(), cw = canvas.width, ch = canvas.height;
+  const sc = Math.min(s.width / cw, s.height / ch), dw = cw * sc, dh = ch * sc, ox = (s.width - dw) / 2, oy = (s.height - dh) / 2;
+  const r = logoRect(dw, dh); if (!r) return;
+  Object.assign(logoImg.style, { display: 'block', left: ox + r[0] + 'px', top: oy + r[1] + 'px', width: r[2] + 'px', opacity: UI.logoOpacity });
+}
+
+// ===== Audio (web preview; in the plugin the analysis runs in C++) =====
+let actx = null, analyser = null, bins = null, mode = 'idle', audioEl = null, demo = null, recDest = null;
+const raw = new Array(NMOD).fill(0), lv = new Array(NMOD).fill(0);
+function ensureCtx() {
+  if (actx) return;
+  actx = new (window.AudioContext || window.webkitAudioContext)();
+  analyser = actx.createAnalyser(); analyser.fftSize = 4096; analyser.smoothingTimeConstant = 0;
+  analyser.minDecibels = -90; analyser.maxDecibels = -10;
+  analyser.connect(actx.destination); bins = new Uint8Array(analyser.frequencyBinCount);
+  if (actx.createMediaStreamDestination) { recDest = actx.createMediaStreamDestination(); analyser.connect(recDest); }
+}
+function readAnalyser() {
+  analyser.getByteFrequencyData(bins);
+  const hz = actx.sampleRate / analyser.fftSize;
+  for (let i = 1; i <= NMOD; i++) {
+    const lo = Math.min(P['m' + i + '_lo'], P['m' + i + '_hi']), hi = Math.max(P['m' + i + '_lo'], P['m' + i + '_hi']);
+    const a = Math.max(1, Math.floor(lo / hz)), z = Math.min(bins.length - 1, Math.max(a, Math.ceil(hi / hz)));
+    let s = 0; for (let k = a; k <= z; k++) s += bins[k];
+    raw[i - 1] = s / (z - a + 1) / 255;
+  }
+}
+function makeDemo() {
+  const out = actx.createGain(); out.gain.value = 0.7; out.connect(analyser);
+  const noise = actx.createBuffer(1, actx.sampleRate, actx.sampleRate);
+  const nd = noise.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+  const chords = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]];
+  const bpm = 122, step = 60 / bpm / 4;
+  let next = 0, n = 0, timer = null;
+  function env(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
+  function kick(t) { const o = actx.createOscillator(), g = actx.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.14); env(g, t, 0.003, 1, 0.42); o.connect(g).connect(out); o.start(t); o.stop(t + 0.5); }
+  function nz(t, type, f, peak, d) { const s = actx.createBufferSource(); s.buffer = noise; const fl = actx.createBiquadFilter(); fl.type = type; fl.frequency.value = f; const g = actx.createGain(); env(g, t, 0.002, peak, d); s.connect(fl).connect(g).connect(out); s.start(t, Math.random() * 0.5); s.stop(t + d + 0.05); }
+  function tone(t, type, f, peak, d, cut) { const o = actx.createOscillator(), g = actx.createGain(), fl = actx.createBiquadFilter(); o.type = type; o.frequency.value = f; fl.type = 'lowpass'; fl.frequency.setValueAtTime(cut * 3, t); fl.frequency.exponentialRampToValueAtTime(cut, t + d); env(g, t, 0.005, peak, d); o.connect(fl).connect(g).connect(out); o.start(t); o.stop(t + d + 0.05); }
+  function play(i, t) {
+    const s = i % 16, bar = Math.floor(i / 16) % 4, ch = chords[bar], sec = Math.floor(i / 64) % 2;
+    if (s % 4 === 0) kick(t);
+    if (s === 4 || s === 12) { nz(t, 'bandpass', 1900, 0.55, 0.18); tone(t, 'triangle', 190, 0.25, 0.08, 800); }
+    nz(t, 'highpass', 8000, s % 4 === 2 ? 0.22 : 0.09, s % 4 === 2 ? 0.12 : 0.035);
+    if ([2, 3, 6, 10, 11, 14].includes(s)) tone(t, 'sawtooth', mtof(ch[0] - 24), 0.32, 0.18, 380);
+    if (s === 0) ch.forEach(m => [-6, 6].forEach(dt => { const o = actx.createOscillator(), g = actx.createGain(), fl = actx.createBiquadFilter(); o.type = 'sawtooth'; o.frequency.value = mtof(m); o.detune.value = dt; fl.type = 'lowpass'; fl.frequency.value = 1400; g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.035, t + 0.4); g.gain.linearRampToValueAtTime(0.0001, t + step * 16); o.connect(fl).connect(g).connect(out); o.start(t); o.stop(t + step * 16 + 0.05); }));
+    if (sec === 1 && s % 2 === 0) tone(t, 'square', mtof(ch[(s / 2) % 3] + 12 + (s >= 8 ? 12 : 0)), 0.07, 0.14, 3200);
+  }
+  function tick() { while (next < actx.currentTime + 0.12) { play(n++, next); next += step; } }
+  return {
+    start() { next = actx.currentTime + 0.05; tick(); timer = setInterval(tick, 25); out.gain.setTargetAtTime(0.7, actx.currentTime, 0.02); },
+    stop() { clearInterval(timer); out.gain.setTargetAtTime(0, actx.currentTime, 0.05); },
+  };
+}
+const playBtn = $('play'), statusEl = $('status');
+function setStatus(t) { statusEl.textContent = t; }
+playBtn.addEventListener('click', () => {
+  ensureCtx(); actx.resume();
+  if (mode === 'demo' || mode === 'file') {
+    if (mode === 'demo') demo.stop(); else audioEl.pause();
+    playBtn.innerHTML = mode === 'demo' ? '&#9654; Play demo beat' : '&#9654; Play file';
+    playBtn.dataset.paused = mode; mode = 'idle'; setStatus('Paused.'); return;
+  }
+  if (playBtn.dataset.paused === 'file' && audioEl) { audioEl.play(); mode = 'file'; playBtn.innerHTML = '&#10074;&#10074; Pause'; setStatus('Playing your file.'); return; }
+  if (!demo) demo = makeDemo();
+  demo.start(); mode = 'demo'; playBtn.innerHTML = '&#10074;&#10074; Pause'; setStatus('Demo beat, 122 BPM, A minor');
+});
+$('file').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  ensureCtx(); actx.resume();
+  if (demo && mode === 'demo') demo.stop();
+  if (!audioEl) { audioEl = new Audio(); audioEl.loop = true; actx.createMediaElementSource(audioEl).connect(analyser); }
+  audioEl.src = URL.createObjectURL(f);
+  audioEl.play().then(() => { mode = 'file'; playBtn.dataset.paused = ''; playBtn.innerHTML = '&#10074;&#10074; Pause'; setStatus('Playing ' + f.name); })
+    .catch(() => setStatus('That file could not be played. Try an MP3, WAV or M4A.'));
+});
+
+// ===== Recording =====
+let recorder = null, recStart = 0, recChunks = [], comp = null, cctx = null, recMime = '', recSeq = Promise.resolve();
+const RES = [720, 1080, 1440, 2160], FPS = [30, 60, 120];
+function pickMime(alpha) {
+  const list = alpha ? ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
+                     : ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+  return list.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
+}
+function b64(buf) { let s = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+function startRec() {
+  if (!window.MediaRecorder || !canvas.captureStream) { setStatus('Recording is not supported in this browser.'); return; }
+  const short = RES[UI.recRes], f = UI.recFormat;
+  recDims = f === 0 ? [Math.round(short * 16 / 9), short] : f === 1 ? [short, Math.round(short * 16 / 9)] : [short, short];
+  resize();
+  comp = document.createElement('canvas'); comp.width = recDims[0]; comp.height = recDims[1];
+  cctx = comp.getContext('2d');
+  const stream = comp.captureStream(FPS[UI.recFps]);
+  if (recDest && !inPlugin()) recDest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+  recMime = pickMime(UI.transparent);
+  try { recorder = new MediaRecorder(stream, { mimeType: recMime || undefined, videoBitsPerSecond: [8, 16, 30, 60][UI.recRes] * 1e6 }); }
+  catch (e) { recDims = null; resize(); setStatus('This browser could not start a recording.'); return; }
+  recMime = recorder.mimeType || recMime;
+  const ext = recMime.includes('mp4') ? 'mp4' : 'webm';
+  recChunks = [];
+  if (juce()) juce().emitEvent('rec-start', { ext });
+  recorder.ondataavailable = e => {
+    if (!e.data || !e.data.size) return;
+    if (juce()) { const d = e.data; recSeq = recSeq.then(() => d.arrayBuffer()).then(buf => juce().emitEvent('rec-chunk', { d: b64(buf) })); }
+    else recChunks.push(e.data);
+  };
+  recorder.onstop = () => finishRec(ext);
+  recorder.start(1000); recStart = performance.now();
+  $('rec').classList.add('on');
+  setStatus('Recording ' + recDims[0] + 'x' + recDims[1] + ' at ' + FPS[UI.recFps] + ' fps' + (UI.transparent && ext === 'webm' ? ', transparent' : '') + '.');
+}
+function stopRec() { if (recorder && recorder.state !== 'inactive') recorder.stop(); }
+async function finishRec(ext) {
+  $('rec').classList.remove('on'); $('rect').textContent = 'Record';
+  recDims = null; recorder = null; resize();
+  if (juce()) { await recSeq; juce().emitEvent('rec-end', {}); setStatus('Saving...'); return; }
+  const blob = new Blob(recChunks, { type: recMime }); recChunks = [];
+  const name = 'sphere-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + ext;
+  try {
+    const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
+    if (dl) { await dl.save({ filename: name, data: blob }); setStatus('Saved ' + name + '.'); return; }
+  } catch (e) { if (e && e.code === 'declined') { setStatus('Recording discarded.'); return; } }
+  try { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setStatus('Saved ' + name + '.'); }
+  catch (e) { setStatus('Could not save the recording here.'); }
+}
+$('rec').addEventListener('click', () => (recorder ? stopRec() : startRec()));
+
+// ===== Plugin bridge =====
+function connectPlugin() {
+  if (!juce() || inPlugin()) return;
+  document.body.classList.add('in-plugin'); mode = 'plugin';
+  $('sub').textContent = 'audio visualizer'; setStatus('Live input');
+  const be = juce();
+  be.addEventListener('levels', d => {
+    if (d && d.b) for (let i = 0; i < NMOD; i++) raw[i] = d.b[i] || 0;
+    if (d && d.p) { let ch = false; for (const k in d.p) if (k in P && Math.abs(P[k] - d.p[k]) > 1e-4) { P[k] = d.p[k]; ch = true; } if (ch) render(); }
+  });
+  be.addEventListener('ui', s => { if (!s) { applyFactory(0); return; } try { Object.assign(UI, JSON.parse(s)); render(); } catch (e) {} }); // empty = new instance
+  be.addEventListener('presets', s => { try { userPresets = JSON.parse(s) || []; render(); } catch (e) {} });
+  be.addEventListener('rec-saved', d => setStatus(d && d.path ? 'Saved to ' + d.path : 'Could not save the recording.'));
+  be.emitEvent('ready', {});
+}
+
+// ===== Frame loop =====
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const base = {}, cur = {}; VIS.forEach(v => { base[v.id] = P[v.id]; cur[v.id] = P[v.id]; });
+const colA = new THREE.Color(UI.a), colB = new THREE.Color(UI.b), colBg = new THREE.Color(UI.bg), tmpC = new THREE.Color();
+let last = performance.now(), time = 0, flowT = 0, spin = 0, cycleAt = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; time += dt;
+  if (Math.round(P.rscale) !== lastScale) { lastScale = Math.round(P.rscale); resize(); }
+  if (mode === 'demo' || mode === 'file') readAnalyser();
+  else if (mode === 'idle') {
+    const beat = (time * 2.03) % 1, kick = 0.25 + 0.55 * Math.exp(-beat * 6);
+    for (let i = 1; i <= NMOD; i++) { const lo = P['m' + i + '_lo']; raw[i - 1] = lo < 150 ? kick : 0.3 + 0.18 * Math.sin(time * (1 + i * 0.37) + i); }
+  }
+  if (UI.cycle > 0 && !recorder && time > cycleAt) { if (cycleAt > 0) stepPreset(1); cycleAt = time + UI.cycle; }
+  const rel = 1 - Math.pow(0.02 + 0.97 * P.smooth, dt * 60);
+  for (let i = 1; i <= NMOD; i++) {
+    const k = 'm' + i + '_'; let t = 0;
+    if (+P[k + 'on'] > 0.5) {
+      if (Math.round(P[k + 'src']) === 1) t = 0.5 + 0.5 * Math.sin(Math.PI * 2 * P[k + 'rate'] * time + i);
+      else t = clamp((raw[i - 1] - 0.28) / 0.55 * P.sens, 0, 1);
+    }
+    const j = i - 1; lv[j] += (t - lv[j]) * (t > lv[j] ? Math.min(1, rel * 3 + 0.35) : rel);
+    $('chiplv' + i).style.width = (lv[j] * 100).toFixed(1) + '%'; $('mlv' + i).style.width = (lv[j] * 100).toFixed(1) + '%';
+  }
+  const ease = 1 - Math.exp(-dt * 3);
+  VIS.forEach(v => { base[v.id] += (P[v.id] - base[v.id]) * ease; cur[v.id] = base[v.id]; });
+  for (let i = 1; i <= NMOD; i++) {
+    const k = 'm' + i + '_'; if (+P[k + 'on'] <= 0.5) continue;
+    const v = VIS[Math.round(P[k + 'tgt'])]; if (v) cur[v.id] += P[k + 'amt'] * lv[i - 1] * (v.max - v.min) * 0.5;
+  }
+  VIS.forEach(v => (cur[v.id] = clamp(cur[v.id], v.min, v.max)));
+  colA.lerp(tmpC.set(UI.a), ease); colB.lerp(tmpC.set(UI.b), ease); colBg.lerp(tmpC.set(UI.bg), ease);
+  U.uA.value.copy(colA); U.uB.value.copy(colB);
+  const transparentRec = recorder && UI.transparent && !recMime.includes('mp4');
+  renderer.setClearColor(colBg, transparentRec ? 0 : 1);
+  const m = reduce ? 0.3 : 1;
+  flowT += dt * cur.flow * m; spin += dt * cur.spin * m;
+  ball.scale.setScalar(cur.zoom); ball.rotation.y = spin; ball.rotation.x = cur.tilt + Math.sin(time * 0.2) * 0.12 * m;
+  U.uTime.value = flowT; U.uDistort.value = cur.disp * 0.7; U.uFreq.value = cur.detail; U.uTwist.value = cur.twist;
+  U.uGlow.value = cur.glow; U.uShift.value = cur.hue;
+  wireMat.uniforms.uAlpha.value = cur.wire * 0.6; wire.visible = cur.wire > 0.01;
+  halo.material.color.copy(colB); halo.material.opacity = Math.min(1, 0.1 + cur.glow * 0.35) * (P.shape === 5 ? 0.4 : 1);
+  halo.scale.setScalar(4 + cur.zoom * 2 + cur.glow * 1.5);
+  pmat.color.copy(colA); pmat.size = 0.03 + cur.particles * 0.1; pmat.opacity = cur.particles; points.visible = cur.particles > 0.01;
+  points.rotation.y = -spin * 0.4; points.rotation.z = time * 0.03 * m;
+  renderer.render(scene, camera);
+  if (recorder && cctx) {
+    cctx.clearRect(0, 0, comp.width, comp.height);
+    cctx.drawImage(canvas, 0, 0, comp.width, comp.height);
+    const r = logoRect(comp.width, comp.height);
+    if (r) { cctx.globalAlpha = UI.logoOpacity; cctx.drawImage(logoImg, r[0], r[1], r[2], r[3]); cctx.globalAlpha = 1; }
+    const s = Math.floor((now - recStart) / 1000); $('rect').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+  requestAnimationFrame(frame);
+}
+
+// ===== Start =====
+try { const s = localStorage.getItem('sphere-ui'); if (s) Object.assign(UI, JSON.parse(s)); } catch (e) {}
+try { const s = localStorage.getItem('sphere-presets'); if (s) userPresets = JSON.parse(s) || []; } catch (e) {}
+const startIdx = Math.max(0, FACTORY.findIndex(f => f.name === UI.preset));
+if (!juce()) applyFactory(startIdx); // in the plugin, the host's saved parameters win
+VIS.forEach(v => { base[v.id] = P[v.id]; });
+colA.set(UI.a); colB.set(UI.b); colBg.set(UI.bg);
+render(); resize();
+connectPlugin(); setTimeout(connectPlugin, 300); setTimeout(connectPlugin, 1200);
+requestAnimationFrame(frame);
+})();
+</script>
